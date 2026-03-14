@@ -104,7 +104,7 @@ def main() -> None:
 
     # 2. Initialize concrete implementations using Dependency Injection
     try:
-        storage = GoogleDriveClient(api_key=config.google_api_key)
+        storage = GoogleDriveClient(config=config)
         splitter = FFmpegChunker(chunk_length_minutes=20)
         detector = SileroVADDetector(
             threshold=0.5,

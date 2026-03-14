@@ -16,6 +16,7 @@ dependencies = [
     "pyannote-audio>=4.0.4",
     "pydantic>=2.12.5",
     "pydantic-settings>=2.13.1",
+    "requests>=2.32.5",
     "torchaudio>=2.10.0",
 ]
 
@@ -25,6 +26,7 @@ dev = [
     "pytest>=9.0.2",
     "pytest-cov>=7.0.0",
     "ruff>=0.15.6",
+    "types-requests>=2.32.4.20260107",
 ]
 
 [tool.ruff]
@@ -46,7 +48,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["S101"]  # Allow assert in tests
+"tests/**/*.py" = ["S101", "S105", "S108"]  # Allow assert and dummy tokens in tests
 
 [tool.ruff.lint.mccabe]
 max-complexity = 10  # Exceeding this prompts function splitting (prevent AI long functions)

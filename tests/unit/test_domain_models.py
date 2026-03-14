@@ -2,6 +2,7 @@ import tempfile
 from unittest.mock import MagicMock, patch
 
 import pytest
+import requests
 from pydantic import ValidationError
 
 from domain_models import (
@@ -10,6 +11,7 @@ from domain_models import (
     AudioSplitter,
     DiarizedSegment,
     DiarizedTranscript,
+    PipelineConfig,
     SpeakerLabel,
     SpeechSegment,
     StorageClient,
@@ -124,37 +126,81 @@ def test_mock_audio_splitter_implements_protocol() -> None:
     assert chunks[0].start_time == 0.0
 
 
-@patch("urllib.request.urlretrieve")
+@patch("tempfile.mkstemp")
+@patch("os.fdopen")
 @patch("wave.open")
 def test_google_drive_client_success(
-    mock_wave_open: MagicMock, mock_urlretrieve: MagicMock
+    mock_wave_open: MagicMock, mock_fdopen: MagicMock, mock_mkstemp: MagicMock
 ) -> None:
+    # Set up safe test configuration instead of hardcoding API keys
+    import os
+
+    os.environ["GOOGLE_API_KEY"] = "dummy_key_for_testing"
+    os.environ["PYANNOTE_AUTH_TOKEN"] = "dummy_token"
+    os.environ["FILE_ID"] = "dummy_file"
+    config = PipelineConfig()  # type: ignore[call-arg]
+
+    mock_http = MagicMock(spec=requests.Session)
+    mock_response = MagicMock()
+    mock_response.iter_content.return_value = [b"chunk1", b"chunk2"]
+    mock_http.get.return_value = mock_response
+
+    mock_mkstemp.return_value = (1, "/tmp/dummy.wav")
+
     mock_wave = MagicMock()
     mock_wave.getnframes.return_value = 44100
     mock_wave.getframerate.return_value = 44100
     mock_wave_open.return_value.__enter__.return_value = mock_wave
 
-    client = GoogleDriveClient(api_key="test_token")
+    client = GoogleDriveClient(config=config, http_client=mock_http)
     source = client.download("test_id")
     assert isinstance(source, AudioSource)
     assert source.duration_seconds == 1.0
 
 
-@patch("urllib.request.urlretrieve")
-def test_google_drive_client_failure(mock_urlretrieve: MagicMock) -> None:
-    import urllib.error
+def test_google_drive_client_failure() -> None:
+    import os
 
-    mock_urlretrieve.side_effect = urllib.error.URLError("Network error")
+    os.environ["GOOGLE_API_KEY"] = "dummy_key_for_testing"
+    os.environ["PYANNOTE_AUTH_TOKEN"] = "dummy_token"
+    os.environ["FILE_ID"] = "dummy_file"
+    config = PipelineConfig()  # type: ignore[call-arg]
 
-    client = GoogleDriveClient(api_key="test_token")
-    with pytest.raises(RuntimeError, match="Network error"):
+    mock_http = MagicMock(spec=requests.Session)
+    mock_http.get.side_effect = requests.exceptions.RequestException("Network error")
+
+    client = GoogleDriveClient(config=config, http_client=mock_http)
+    with pytest.raises(RuntimeError, match="Network or Request Error during download"):
         client.download("test_id")
 
 
-@patch("urllib.request.urlretrieve")
-def test_google_drive_client_unexpected_error(mock_urlretrieve: MagicMock) -> None:
-    mock_urlretrieve.side_effect = Exception("Unexpected error")
+def test_google_drive_client_http_error() -> None:
+    import os
 
-    client = GoogleDriveClient(api_key="test_token")
-    with pytest.raises(RuntimeError, match="Unexpected error during download"):
+    os.environ["GOOGLE_API_KEY"] = "dummy_key_for_testing"
+    os.environ["PYANNOTE_AUTH_TOKEN"] = "dummy_token"
+    os.environ["FILE_ID"] = "dummy_file"
+    config = PipelineConfig()  # type: ignore[call-arg]
+
+    mock_http = MagicMock(spec=requests.Session)
+    mock_http.get.side_effect = requests.exceptions.HTTPError("403 Forbidden")
+
+    client = GoogleDriveClient(config=config, http_client=mock_http)
+    with pytest.raises(RuntimeError, match="HTTP Error during download"):
+        client.download("test_id")
+
+
+def test_google_drive_client_unexpected_error() -> None:
+    import os
+
+    os.environ["GOOGLE_API_KEY"] = "dummy_key_for_testing"
+    os.environ["PYANNOTE_AUTH_TOKEN"] = "dummy_token"
+    os.environ["FILE_ID"] = "dummy_file"
+    config = PipelineConfig()  # type: ignore[call-arg]
+
+    mock_http = MagicMock(spec=requests.Session)
+    mock_http.get.side_effect = Exception("Unexpected error")
+
+    client = GoogleDriveClient(config=config, http_client=mock_http)
+    with pytest.raises(RuntimeError, match="Unexpected error while parsing audio"):
         client.download("test_id")

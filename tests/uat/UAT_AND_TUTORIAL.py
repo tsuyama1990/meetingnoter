@@ -110,7 +110,7 @@ def cell_markdown_c02(mo: object) -> object:
         r"""
         # CYCLE02 User Acceptance Testing (UAT)
 
-        This section validates the Secure Data Ingestion component via real-world API requests.
+        This section validates the Secure Data Ingestion component logic through test doubles to prevent actual API calls and secret exposure.
         """
     )
 
@@ -118,17 +118,36 @@ def cell_markdown_c02(mo: object) -> object:
 @app.cell
 def cell_tests_c02(mo: object) -> tuple:  # type: ignore[type-arg]
     def test_c02_error_handling() -> object:
-        try:
-            from meetingnoter.ingestion.drive_client import GoogleDriveClient
+        from unittest.mock import MagicMock
 
-            client = GoogleDriveClient(api_key="invalid_api_key")
-            # This should fail naturally because the API key is invalid and the file_id is fake
+        import requests
+
+        from domain_models import PipelineConfig
+        from meetingnoter.ingestion.drive_client import GoogleDriveClient
+
+        try:
+            # Safely configure a fake environment
+            import os
+
+            os.environ["GOOGLE_API_KEY"] = "mock_api_key_for_testing_12345"
+            os.environ["PYANNOTE_AUTH_TOKEN"] = "mock_pyannote"
+            os.environ["FILE_ID"] = "mock_file"
+
+            config = PipelineConfig()  # type: ignore[call-arg]
+
+            # Inject a mock HTTP Client
+            mock_http = MagicMock(spec=requests.Session)
+            mock_http.get.side_effect = requests.exceptions.HTTPError("403 Forbidden")
+
+            client = GoogleDriveClient(config=config, http_client=mock_http)
+
+            # This should fail naturally due to the mock raising HTTPError
             client.download("fake_file_id_for_testing_12345")
 
             return mo.md("**Cycle 02 Error Handling Failed:** Exception was not triggered!")  # type: ignore[attr-defined]
         except RuntimeError as e:
             return mo.md(  # type: ignore[attr-defined]
-                f"**Cycle 02 Error Handling Passed!** Caught runtime error gracefully from real API:\n```\n{e}\n```"
+                f"**Cycle 02 Error Handling Passed!** Caught runtime error gracefully from simulated API failure:\n```\n{e}\n```"
             )
 
     c02_tests_output = mo.vstack([test_c02_error_handling()])  # type: ignore[attr-defined]
