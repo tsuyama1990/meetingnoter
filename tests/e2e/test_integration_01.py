@@ -14,13 +14,13 @@ from domain_models import (
 )
 
 
-class DummyStorageClient:
+class DummyStorageClient(StorageClient):
     def download(self, file_id: str) -> AudioSource:
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf:
             return AudioSource(filepath=tf.name, duration_seconds=60.0)
 
 
-class DummyAudioSplitter:
+class DummyAudioSplitter(AudioSplitter):
     def split(self, source: AudioSource) -> list[AudioChunk]:
         with (
             tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf0,
@@ -32,12 +32,12 @@ class DummyAudioSplitter:
             ]
 
 
-class DummySpeechDetector:
+class DummySpeechDetector(SpeechDetector):
     def detect_speech(self, chunk: AudioChunk) -> list[SpeechSegment]:
         return [SpeechSegment(start_time=chunk.start_time, end_time=chunk.start_time + 10.0)]
 
 
-class DummyTranscriber:
+class DummyTranscriber(Transcriber):
     def transcribe(
         self, chunk: AudioChunk, speech_segments: list[SpeechSegment]
     ) -> list[TranscriptionSegment]:
@@ -49,7 +49,7 @@ class DummyTranscriber:
         ]
 
 
-class DummyDiarizer:
+class DummyDiarizer(Diarizer):
     def diarize(self, chunk: AudioChunk) -> list[SpeakerLabel]:
         return [
             SpeakerLabel(
@@ -60,7 +60,7 @@ class DummyDiarizer:
         ]
 
 
-class FailingDummyStorageClient:
+class FailingDummyStorageClient(StorageClient):
     """A clean test double that fails on download."""
 
     def download(self, file_id: str) -> AudioSource:
@@ -101,7 +101,8 @@ def test_pipeline_integration() -> None:
     transcriber: Transcriber = DummyTranscriber()
     diarizer: Diarizer = DummyDiarizer()
 
-    transcript = run_pipeline(
+    from domain_models import DiarizedTranscript
+    transcript: DiarizedTranscript = run_pipeline(
         storage=storage,
         splitter=splitter,
         detector=detector,
@@ -137,10 +138,10 @@ def test_ffmpeg_chunker_integration() -> None:
         w.writeframes(b"\x00" * 16000 * 2)
 
     try:
-        source = AudioSource(filepath=tf.name, duration_seconds=1.0)
-        chunker = FFmpegChunker(chunk_length_minutes=1) # 1 minute chunks
+        source: AudioSource = AudioSource(filepath=tf.name, duration_seconds=1.0)
+        chunker: FFmpegChunker = FFmpegChunker(chunk_length_minutes=1) # 1 minute chunks
 
-        chunks = chunker.split(source)
+        chunks: list[AudioChunk] = chunker.split(source)
 
         assert len(chunks) == 1
         assert chunks[0].start_time == 0.0

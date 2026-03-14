@@ -10,6 +10,9 @@ from domain_models import AudioChunk, AudioSource, AudioSplitter
 class FFmpegChunker(AudioSplitter):
     """Concrete implementation of AudioSplitter using FFmpeg."""
 
+    ffmpeg_path: str
+    chunk_length_seconds: int
+
     def __init__(self, ffmpeg_path: str = "ffmpeg", chunk_length_minutes: int = 20) -> None:
         self.ffmpeg_path = ffmpeg_path
         self.chunk_length_seconds = chunk_length_minutes * 60

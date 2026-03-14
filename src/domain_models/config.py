@@ -4,46 +4,30 @@ from pydantic import Field
 from pydantic_settings import BaseSettings
 
 
-def get_secret(key: str) -> str:
-    """
-    Dynamically retrieves a secret via environment variables, or
-    falls back securely to Google Colab's userdata API if available.
-    """
-    # 1. Check environment variables first
-    value = os.environ.get(key)
-    if value:
-        return value
-
-    # 2. Securely check Colab userdata dynamically at runtime
-    try:
-        from google.colab import userdata
-
-        colab_value = userdata.get(key)
-        if colab_value:
-            return str(colab_value)
-    except ImportError:
-        pass  # Not running in Colab
-
-    # 3. Fail gracefully if required secret is missing
-    msg = f"Missing required configuration secret: {key}"
-    raise RuntimeError(msg)
-
-
 class PipelineConfig(BaseSettings):
     """Secure configuration model for the MeetingNoter pipeline."""
 
     # Required Secrets fetched dynamically to prevent hardcoding or exposure
     google_api_key: str = Field(
-        default_factory=lambda: get_secret("GOOGLE_API_KEY"),
+        default_factory=lambda: os.environ.get("GOOGLE_API_KEY")
+        or (__import__("google.colab").userdata.get("GOOGLE_API_KEY") if __import__("importlib").util.find_spec("google.colab") else None)
+        or "",
         description="API key for Google Drive access",
+        min_length=1,
     )
     pyannote_auth_token: str = Field(
-        default_factory=lambda: get_secret("PYANNOTE_AUTH_TOKEN"),
+        default_factory=lambda: os.environ.get("PYANNOTE_AUTH_TOKEN")
+        or (__import__("google.colab").userdata.get("PYANNOTE_AUTH_TOKEN") if __import__("importlib").util.find_spec("google.colab") else None)
+        or "",
         description="HuggingFace token for Pyannote Diarization",
+        min_length=1,
     )
     file_id: str = Field(
-        default_factory=lambda: get_secret("FILE_ID"),
+        default_factory=lambda: os.environ.get("FILE_ID")
+        or (__import__("google.colab").userdata.get("FILE_ID") if __import__("importlib").util.find_spec("google.colab") else None)
+        or "",
         description="The Google Drive file ID to process",
+        min_length=1,
     )
 
     # Optional / Default Configuration
