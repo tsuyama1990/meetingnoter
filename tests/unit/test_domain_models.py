@@ -1,5 +1,5 @@
 import tempfile
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from pydantic import ValidationError
@@ -15,6 +15,7 @@ from domain_models import (
     StorageClient,
     TranscriptionSegment,
 )
+from meetingnoter.ingestion.drive_client import GoogleDriveClient
 
 
 def test_audio_source_valid() -> None:
@@ -121,3 +122,39 @@ def test_mock_audio_splitter_implements_protocol() -> None:
     assert len(chunks) == 1
     assert isinstance(chunks[0], AudioChunk)
     assert chunks[0].start_time == 0.0
+
+
+@patch("urllib.request.urlretrieve")
+@patch("wave.open")
+def test_google_drive_client_success(
+    mock_wave_open: MagicMock, mock_urlretrieve: MagicMock
+) -> None:
+    mock_wave = MagicMock()
+    mock_wave.getnframes.return_value = 44100
+    mock_wave.getframerate.return_value = 44100
+    mock_wave_open.return_value.__enter__.return_value = mock_wave
+
+    client = GoogleDriveClient(api_key="test_token")
+    source = client.download("test_id")
+    assert isinstance(source, AudioSource)
+    assert source.duration_seconds == 1.0
+
+
+@patch("urllib.request.urlretrieve")
+def test_google_drive_client_failure(mock_urlretrieve: MagicMock) -> None:
+    import urllib.error
+
+    mock_urlretrieve.side_effect = urllib.error.URLError("Network error")
+
+    client = GoogleDriveClient(api_key="test_token")
+    with pytest.raises(RuntimeError, match="Network error"):
+        client.download("test_id")
+
+
+@patch("urllib.request.urlretrieve")
+def test_google_drive_client_unexpected_error(mock_urlretrieve: MagicMock) -> None:
+    mock_urlretrieve.side_effect = Exception("Unexpected error")
+
+    client = GoogleDriveClient(api_key="test_token")
+    with pytest.raises(RuntimeError, match="Unexpected error during download"):
+        client.download("test_id")

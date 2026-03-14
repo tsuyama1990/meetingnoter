@@ -1,22 +1,24 @@
+import pathlib
 import tempfile
+import urllib.error
+import urllib.request
+import wave
 
 from domain_models import AudioSource, StorageClient
 
 
 class GoogleDriveClient(StorageClient):
-    """Concrete implementation for downloading from Google Drive."""
+    """Concrete implementation for downloading from Google Drive securely."""
 
     def __init__(self, api_key: str) -> None:
+        """
+        Initializes the client with the provided Google Drive API Key.
+        Configuration must be injected by Dependency Injection using PipelineConfig.
+        """
         self.api_key = api_key
 
     def download(self, file_id: str) -> AudioSource:
-        # We are instructed by the Auditor to NOT use direct googleapiclient imports.
-        # Therefore, we utilize standard requests.
-        import pathlib
-        import urllib.error
-        import urllib.request
-        import wave
-
+        """Downloads an audio file and returns an AudioSource."""
         temp_file_path = ""
         try:
             # Construct Google Drive download URL for API key usage

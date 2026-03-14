@@ -12,8 +12,8 @@ def cell_imports() -> tuple:  # type: ignore[type-arg]
 
 
 @app.cell
-def cell_markdown(mo: object) -> None:
-    mo.md(  # type: ignore[attr-defined]
+def cell_markdown(mo: object) -> object:
+    return mo.md(  # type: ignore[attr-defined]
         r"""
         # CYCLE01 User Acceptance Testing (UAT)
 
@@ -83,7 +83,7 @@ def cell_tests(mo: object) -> tuple:  # type: ignore[type-arg]
                 f"**Error Handling Passed!** Caught validation error gracefully:\n```\n{e}\n```"
             )
 
-    mo.vstack([test_happy_path(), test_error_handling()])  # type: ignore[attr-defined]
+    tests_output = mo.vstack([test_happy_path(), test_error_handling()])  # type: ignore[attr-defined]
     return (
         test_happy_path,
         test_error_handling,
@@ -100,6 +100,41 @@ def cell_tests(mo: object) -> tuple:  # type: ignore[type-arg]
         SpeechDetector,
         Transcriber,
         Diarizer,
+        tests_output,
+    )
+
+
+@app.cell
+def cell_markdown_c02(mo: object) -> object:
+    return mo.md(  # type: ignore[attr-defined]
+        r"""
+        # CYCLE02 User Acceptance Testing (UAT)
+
+        This section validates the Secure Data Ingestion component via real-world API requests.
+        """
+    )
+
+
+@app.cell
+def cell_tests_c02(mo: object) -> tuple:  # type: ignore[type-arg]
+    def test_c02_error_handling() -> object:
+        try:
+            from meetingnoter.ingestion.drive_client import GoogleDriveClient
+
+            client = GoogleDriveClient(api_key="invalid_api_key")
+            # This should fail naturally because the API key is invalid and the file_id is fake
+            client.download("fake_file_id_for_testing_12345")
+
+            return mo.md("**Cycle 02 Error Handling Failed:** Exception was not triggered!")  # type: ignore[attr-defined]
+        except RuntimeError as e:
+            return mo.md(  # type: ignore[attr-defined]
+                f"**Cycle 02 Error Handling Passed!** Caught runtime error gracefully from real API:\n```\n{e}\n```"
+            )
+
+    c02_tests_output = mo.vstack([test_c02_error_handling()])  # type: ignore[attr-defined]
+    return (
+        test_c02_error_handling,
+        c02_tests_output,
     )
 
 
