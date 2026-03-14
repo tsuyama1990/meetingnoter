@@ -6,7 +6,7 @@ testpaths: tests
 plugins: cov-7.0.0, anyio-4.12.1
 collected 28 items
 
-tests/e2e/test_integration_01.py ..s                                     [ 10%]
+tests/e2e/test_integration_01.py ...                                     [ 10%]
 tests/unit/test_chunker.py ......                                        [ 32%]
 tests/unit/test_domain_models.py ...................                     [100%]
 
@@ -15,7 +15,7 @@ _______________ coverage: platform linux, python 3.12.13-final-0 _______________
 
 Name                                         Stmts   Miss  Cover   Missing
 --------------------------------------------------------------------------
-main.py                                         68     27    60%   13-14, 43, 87-88, 97, 110-155, 159
+main.py                                         71     29    59%   13-14, 42, 86-87, 96, 108-125, 131-160, 164
 src/domain_models/__init__.py                    5      0   100%
 src/domain_models/audio.py                      27      0   100%
 src/domain_models/config.py                     18      0   100%
@@ -23,5 +23,5 @@ src/domain_models/interfaces.py                 13      0   100%
 src/domain_models/transcription.py              38      0   100%
 src/meetingnoter/ingestion/drive_client.py      46      3    93%   51, 57, 63
 --------------------------------------------------------------------------
-TOTAL                                          215     30    86%
-======================== 27 passed, 1 skipped in 5.65s =========================
+TOTAL                                          218     32    85%
+============================== 28 passed in 4.95s ==============================

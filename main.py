@@ -13,6 +13,7 @@ try:
 except ImportError:
     torch: Any = None  # type: ignore[no-redef]
 
+# Import the concrete implementations
 from domain_models import (
     AudioChunk,
     AudioSource,
@@ -26,8 +27,6 @@ from domain_models import (
     StorageClient,
     Transcriber,
 )
-
-# Import the concrete implementations
 from meetingnoter.ingestion.drive_client import GoogleDriveClient
 from meetingnoter.processing.chunker import FFmpegChunker
 from meetingnoter.processing.diarizer import PyannoteDiarizer
@@ -104,6 +103,28 @@ def run_pipeline(
     return DiarizedTranscript(segments=all_segments)
 
 
+def create_components(config: PipelineConfig) -> tuple[StorageClient, AudioSplitter, SpeechDetector, Transcriber, Diarizer]:
+    """Factory function to build concrete implementations for dependency injection."""
+    storage: StorageClient = GoogleDriveClient(config=config)
+    splitter: AudioSplitter = FFmpegChunker(ffmpeg_path=config.ffmpeg_path, chunk_length_minutes=20)
+    detector: SpeechDetector = SileroVADDetector(
+        threshold=0.5,
+        min_speech_duration_ms=250,
+        min_silence_duration_ms=1000,
+        model_path=config.silero_vad_model_path,
+    )
+    transcriber: Transcriber = FasterWhisperTranscriber(
+        model_size="large-v3",
+        compute_type="int8",
+        language=str(config.transcriber_language),
+        vad_filter=bool(config.transcriber_vad_filter),
+        condition_on_previous_text=bool(config.transcriber_condition_on_previous_text),
+        temperature=list(config.transcriber_temperature),
+    )
+    diarizer: Diarizer = PyannoteDiarizer(auth_token=config.pyannote_auth_token)
+    return storage, splitter, detector, transcriber, diarizer
+
+
 def main() -> None:
     """Main entry point to execute the pipeline using concrete implementations."""
     # 1. Resolve and validate configuration
@@ -113,25 +134,9 @@ def main() -> None:
         logger.exception("Configuration validation failed")
         sys.exit(1)
 
-    # 2. Initialize concrete implementations using Dependency Injection
+    # 2. Initialize concrete implementations using Dependency Injection via Factory
     try:
-        storage: StorageClient = GoogleDriveClient(config=config)
-        splitter: AudioSplitter = FFmpegChunker(ffmpeg_path=config.ffmpeg_path, chunk_length_minutes=20)
-        detector: SpeechDetector = SileroVADDetector(
-            threshold=0.5,
-            min_speech_duration_ms=250,
-            min_silence_duration_ms=1000,
-            model_path=config.silero_vad_model_path,
-        )
-        transcriber: Transcriber = FasterWhisperTranscriber(
-            model_size="large-v3",
-            compute_type="int8",
-            language=str(config.transcriber_language),
-            vad_filter=bool(config.transcriber_vad_filter),
-            condition_on_previous_text=bool(config.transcriber_condition_on_previous_text),
-            temperature=list(config.transcriber_temperature),
-        )
-        diarizer: Diarizer = PyannoteDiarizer(auth_token=config.pyannote_auth_token)
+        storage, splitter, detector, transcriber, diarizer = create_components(config)
     except Exception:
         logger.exception("Failed to initialize pipeline components")
         sys.exit(1)

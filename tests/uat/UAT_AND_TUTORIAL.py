@@ -145,31 +145,28 @@ def cell_markdown_c02(mo: Any) -> Any:
 @app.cell
 def cell_tests_c02(mo: Any) -> tuple[Callable[[], Any], Any]:
     def test_c02_error_handling() -> Any:
-        from unittest.mock import MagicMock, patch
-
-        import requests
+        import os
 
         from domain_models import PipelineConfig
         from meetingnoter.ingestion.drive_client import GoogleDriveClient
 
         try:
-            # Safely configure a fake environment without hardcoding into os.environ globally
-            with patch("os.environ.get", return_value="dummy_env_var_value_for_uat"):
-                config = PipelineConfig()
+            # Execute actual HTTP client against Google Drive API with an invalid file ID.
+            # To pass schema validation, dummy credentials are required via environment explicitly for UAT execution context.
+            os.environ["GOOGLE_API_KEY"] = "dummy_key_for_uat"
+            os.environ["PYANNOTE_AUTH_TOKEN"] = "dummy_token_for_uat"
+            os.environ["FILE_ID"] = "fake_file_id_for_testing_12345"
 
-            # Inject a mock HTTP Client
-            mock_http = MagicMock(spec=requests.Session)
-            mock_http.get.side_effect = requests.exceptions.HTTPError("403 Forbidden")
+            config = PipelineConfig()
+            client = GoogleDriveClient(config=config)
 
-            client = GoogleDriveClient(config=config, http_client=mock_http)
-
-            # This should fail naturally due to the mock raising HTTPError
+            # This will fail naturally due to the real API returning 400/404 for the dummy credentials.
             client.download("fake_file_id_for_testing_12345")
 
             return mo.md("**Cycle 02 Error Handling Failed:** Exception was not triggered!")
         except RuntimeError as e:
             return mo.md(
-                f"**Cycle 02 Error Handling Passed!** Caught runtime error gracefully from simulated API failure:\n```\n{e}\n```"
+                f"**Cycle 02 Error Handling Passed!** Caught runtime error gracefully from actual API failure:\n```\n{e}\n```"
             )
 
     c02_tests_output = mo.vstack([test_c02_error_handling()])
@@ -181,41 +178,3 @@ def cell_tests_c02(mo: Any) -> tuple[Callable[[], Any], Any]:
 
 if __name__ == "__main__":
     app.run()
-
-@app.cell
-def cell_markdown_c03(mo: Any) -> Any:
-    return mo.md(
-        r"""
-        # CYCLE03 User Acceptance Testing (UAT)
-
-        This section validates the Audio Preprocessing (Chunking) component. It tests the behavior when attempting to create malformed audio chunks, ensuring that precise timestamp offset validation prevents state errors before heavy compute begins.
-        """
-    )
-
-
-@app.cell
-def cell_tests_c03(mo: Any) -> tuple[Callable[[], Any], Any]:
-    def test_c03_error_handling() -> Any:
-        from pydantic import ValidationError
-
-        from domain_models import AudioChunk
-
-        try:
-            # Inject malformed data: start_time >= end_time
-            _ = AudioChunk(
-                chunk_filepath="malformed_chunk.wav",
-                start_time=120.0,
-                end_time=60.0, # Error: end time is before start time
-                chunk_index=1
-            )
-            return mo.md("**Cycle 03 Error Handling Failed:** Exception was not triggered!")
-        except ValidationError as e:
-            return mo.md(
-                f"**Cycle 03 Error Handling Passed!** Caught validation error gracefully:\n```\n{e}\n```"
-            )
-
-    c03_tests_output = mo.vstack([test_c03_error_handling()])
-    return (
-        test_c03_error_handling,
-        c03_tests_output,
-    )

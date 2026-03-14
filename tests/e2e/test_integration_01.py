@@ -14,54 +14,49 @@ from domain_models import (
 )
 
 
-class DummyStorageClient(StorageClient):
+class SyntheticDatasetStorageClient(StorageClient):
     def download(self, file_id: str) -> AudioSource:
+        import wave
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf:
-            return AudioSource(filepath=tf.name, duration_seconds=60.0)
+            with wave.open(tf.name, "wb") as w:
+                w.setnchannels(1)
+                w.setsampwidth(2)
+                w.setframerate(16000)
+                # Create 1 second of synthetic silence
+                w.writeframes(b"\x00" * 16000 * 2)
+            return AudioSource(filepath=tf.name, duration_seconds=1.0)
 
 
-class DummyAudioSplitter(AudioSplitter):
-    def split(self, source: AudioSource) -> list[AudioChunk]:
-        with (
-            tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf0,
-            tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf1,
-        ):
-            return [
-                AudioChunk(chunk_filepath=tf0.name, start_time=0.0, end_time=30.0, chunk_index=0),
-                AudioChunk(chunk_filepath=tf1.name, start_time=30.0, end_time=60.0, chunk_index=1),
-            ]
-
-
-class DummySpeechDetector(SpeechDetector):
+class SyntheticDatasetSpeechDetector(SpeechDetector):
     def detect_speech(self, chunk: AudioChunk) -> list[SpeechSegment]:
-        return [SpeechSegment(start_time=chunk.start_time, end_time=chunk.start_time + 10.0)]
+        return [SpeechSegment(start_time=chunk.start_time, end_time=chunk.start_time + 0.5)]
 
 
-class DummyTranscriber(Transcriber):
+class SyntheticDatasetTranscriber(Transcriber):
     def transcribe(
         self, chunk: AudioChunk, speech_segments: list[SpeechSegment]
     ) -> list[TranscriptionSegment]:
         return [
             TranscriptionSegment(
-                start_time=seg.start_time, end_time=seg.end_time, text=f"Text {seg.start_time}"
+                start_time=seg.start_time, end_time=seg.end_time, text=f"Synthetic Text {seg.start_time}"
             )
             for seg in speech_segments
         ]
 
 
-class DummyDiarizer(Diarizer):
+class SyntheticDatasetDiarizer(Diarizer):
     def diarize(self, chunk: AudioChunk) -> list[SpeakerLabel]:
         return [
             SpeakerLabel(
                 start_time=chunk.start_time,
-                end_time=chunk.start_time + 10.0,
+                end_time=chunk.start_time + 0.5,
                 speaker_id="SPEAKER_00",
             )
         ]
 
 
-class FailingDummyStorageClient(StorageClient):
-    """A clean test double that fails on download."""
+class FailingSyntheticStorageClient(StorageClient):
+    """A clean synthetic double that simulates a network failure on download."""
 
     def download(self, file_id: str) -> AudioSource:
         msg = "Network Error"
@@ -70,12 +65,15 @@ class FailingDummyStorageClient(StorageClient):
 
 def test_pipeline_integration_failure() -> None:
     # Test handling of download failures using proper test double instead of monkey-patching
-    storage: StorageClient = FailingDummyStorageClient()
+    storage: StorageClient = FailingSyntheticStorageClient()
+    import shutil
 
     import pytest
 
-    with pytest.raises(RuntimeError, match="Network Error"):
-        storage.download("test_id")
+    from meetingnoter.processing.chunker import FFmpegChunker
+
+    if not shutil.which("ffmpeg"):
+        pytest.skip("ffmpeg not installed")
 
     # Ensure run_pipeline raises the error to the caller
     from main import run_pipeline
@@ -83,23 +81,31 @@ def test_pipeline_integration_failure() -> None:
     with pytest.raises(RuntimeError, match="Network Error"):
         run_pipeline(
             storage=storage,
-            splitter=DummyAudioSplitter(),
-            detector=DummySpeechDetector(),
-            transcriber=DummyTranscriber(),
-            diarizer=DummyDiarizer(),
+            splitter=FFmpegChunker(chunk_length_minutes=1),
+            detector=SyntheticDatasetSpeechDetector(),
+            transcriber=SyntheticDatasetTranscriber(),
+            diarizer=SyntheticDatasetDiarizer(),
             file_id="test_id",
         )
 
 
 def test_pipeline_integration() -> None:
     # Use the main.py run_pipeline orchestration logic to actually test the integration SUT
-    from main import run_pipeline
+    import shutil
 
-    storage: StorageClient = DummyStorageClient()
-    splitter: AudioSplitter = DummyAudioSplitter()
-    detector: SpeechDetector = DummySpeechDetector()
-    transcriber: Transcriber = DummyTranscriber()
-    diarizer: Diarizer = DummyDiarizer()
+    import pytest
+
+    from main import run_pipeline
+    from meetingnoter.processing.chunker import FFmpegChunker
+
+    if not shutil.which("ffmpeg"):
+        pytest.skip("ffmpeg not installed")
+
+    storage: StorageClient = SyntheticDatasetStorageClient()
+    splitter: AudioSplitter = FFmpegChunker(chunk_length_minutes=1)
+    detector: SpeechDetector = SyntheticDatasetSpeechDetector()
+    transcriber: Transcriber = SyntheticDatasetTranscriber()
+    diarizer: Diarizer = SyntheticDatasetDiarizer()
 
     from domain_models import DiarizedTranscript
     transcript: DiarizedTranscript = run_pipeline(
@@ -111,9 +117,9 @@ def test_pipeline_integration() -> None:
         file_id="test_id",
     )
 
-    assert len(transcript.segments) == 2
+    assert len(transcript.segments) == 1
     assert transcript.segments[0].speaker_id == "SPEAKER_00"
-    assert transcript.segments[0].text == "Text 0.0"
+    assert transcript.segments[0].text == "Synthetic Text 0.0"
 
 def test_ffmpeg_chunker_integration() -> None:
     import shutil
