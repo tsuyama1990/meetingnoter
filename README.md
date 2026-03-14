@@ -1,50 +1,34 @@
-# meetingnoter
+# MeetingNoter
 
-A highly secure, zero-cost (via Colab T4) voice analysis and speaker diarization pipeline for Customer Problem Fit (CPF) research.
+MeetingNoter is a highly secure, privacy-preserving voice analysis and speaker diarization pipeline specifically designed for the rigorous demands of qualitative research processes.
 
-![Build Status](https://img.shields.io/badge/build-passing-brightgreen) ![License](https://img.shields.io/badge/license-MIT-blue)
+It provides robust, highly accurate Speech-to-Text transcription and speaker recognition capabilities while running fully locally (or inside an ephemeral Google Colab instance). The strict zero-commercial-API architecture ensures that highly sensitive audio data, including Personal Identifiable Information (PII) and corporate secrets, never leaves your environment.
 
-## Key Features
-- **Data Sovereignty:** Audio processing stays strictly within your Colab instance. No API data leaks.
-- **Zero Cost Inference:** Uses free Google Colab GPUs instead of expensive STT APIs.
-- **Japanese NLP Optimized:** Pre-gating with Silero VAD and Whisper parameter tuning to capture *aizuchi* and prevent hallucination.
-- **Aggressive Memory Management:** FFmpeg chunking and explicit garbage collection prevent OOM errors on long 60-minute interviews.
+## Features
+- **Pydantic-driven Core Schema**: Strong typing and validations enforce strict boundaries for parsing audio chunks, speech segments, transcripts, and speaker labels.
+- **Secure Architecture Framework**: Defines strict abstractions (`StorageClient`, `AudioSplitter`, `SpeechDetector`, `Transcriber`, `Diarizer`) to plug in models and clients without mixing concerns.
 
-## Architecture Overview
-Built with AC-CDD, utilizing Dependency Injection and Pydantic schemas.
+## Installation
 
-```mermaid
-graph TD
-    A[Google Drive Audio] --> B(Ingestion Module)
-    B --> C(FFmpeg Chunking)
-    C --> D(Silero VAD Gating)
-    D --> E(faster-whisper STT)
-    E --> F(Pyannote Diarization)
-    F --> G(Merger & Aggregation)
-    G --> H[Output: Markdown / JSON]
-```
+Ensure you have `uv` installed, then run the following to install all required dependencies:
 
-## Prerequisites
-- Python 3.12+
-- `uv` package manager
-
-## Installation & Setup
 ```bash
-git clone <repository_url>
-cd meetingnoter
 uv sync
 ```
 
 ## Usage
-Run the interactive UAT:
+
+(Note: This pipeline is currently undergoing early development. Currently implemented are the core schemas and abstractions.)
+
+To perform interactive testing of the core data schemas, run the User Acceptance Testing tutorial using Marimo:
+
 ```bash
-uv run marimo edit tutorials/UAT_AND_TUTORIAL.py
+PYTHONPATH=src uv run marimo edit tests/uat/UAT_AND_TUTORIAL.py
 ```
 
-## Development Workflow
-- Linter: `uv run ruff check .`
-- Type Checker: `uv run mypy .`
-- Tests: `uv run pytest`
+## Project Structure
 
-## License
-MIT License
+- `src/domain_models/`: Core Pydantic schemas and interface protocols defining the entire project's contract boundaries.
+- `tests/unit/`: Unit tests for domain models and mock protocols.
+- `tests/e2e/`: End-to-end integration tests simulating a full pipeline run.
+- `tests/uat/`: Interactive User Acceptance Testing scripts built with `marimo`.
