@@ -12,8 +12,8 @@ def cell_imports() -> tuple:  # type: ignore[type-arg]
 
 
 @app.cell
-def cell_markdown(mo: object) -> None:
-    mo.md(  # type: ignore[attr-defined]
+def cell_markdown(mo: object) -> object:
+    return mo.md(  # type: ignore[attr-defined]
         r"""
         # CYCLE01 User Acceptance Testing (UAT)
 
@@ -23,7 +23,26 @@ def cell_markdown(mo: object) -> None:
 
 
 @app.cell
-def cell_tests(mo: object) -> tuple:  # type: ignore[type-arg]
+def cell_tests(
+    mo: object,
+) -> tuple[
+    object,
+    object,
+    type,
+    object,
+    object,
+    object,
+    object,
+    object,
+    object,
+    object,
+    object,
+    object,
+    object,
+    object,
+    object,
+    object,
+]:
     from pydantic import ValidationError
 
     from domain_models import (
@@ -83,7 +102,7 @@ def cell_tests(mo: object) -> tuple:  # type: ignore[type-arg]
                 f"**Error Handling Passed!** Caught validation error gracefully:\n```\n{e}\n```"
             )
 
-    mo.vstack([test_happy_path(), test_error_handling()])  # type: ignore[attr-defined]
+    tests_output = mo.vstack([test_happy_path(), test_error_handling()])  # type: ignore[attr-defined]
     return (
         test_happy_path,
         test_error_handling,
@@ -100,6 +119,55 @@ def cell_tests(mo: object) -> tuple:  # type: ignore[type-arg]
         SpeechDetector,
         Transcriber,
         Diarizer,
+        tests_output,
+    )
+
+
+@app.cell
+def cell_markdown_c02(mo: object) -> object:
+    return mo.md(  # type: ignore[attr-defined]
+        r"""
+        # CYCLE02 User Acceptance Testing (UAT)
+
+        This section validates the Secure Data Ingestion component logic through test doubles to prevent actual API calls and secret exposure.
+        """
+    )
+
+
+@app.cell
+def cell_tests_c02(mo: object) -> tuple[object, object]:
+    def test_c02_error_handling() -> object:
+        from unittest.mock import MagicMock, patch
+
+        import requests
+
+        from domain_models import PipelineConfig
+        from meetingnoter.ingestion.drive_client import GoogleDriveClient
+
+        try:
+            # Safely configure a fake environment without hardcoding into os.environ globally
+            with patch("os.environ.get", return_value="dummy_env_var_value_for_uat"):
+                config = PipelineConfig()
+
+            # Inject a mock HTTP Client
+            mock_http = MagicMock(spec=requests.Session)
+            mock_http.get.side_effect = requests.exceptions.HTTPError("403 Forbidden")
+
+            client = GoogleDriveClient(config=config, http_client=mock_http)
+
+            # This should fail naturally due to the mock raising HTTPError
+            client.download("fake_file_id_for_testing_12345")
+
+            return mo.md("**Cycle 02 Error Handling Failed:** Exception was not triggered!")  # type: ignore[attr-defined]
+        except RuntimeError as e:
+            return mo.md(  # type: ignore[attr-defined]
+                f"**Cycle 02 Error Handling Passed!** Caught runtime error gracefully from simulated API failure:\n```\n{e}\n```"
+            )
+
+    c02_tests_output = mo.vstack([test_c02_error_handling()])  # type: ignore[attr-defined]
+    return (
+        test_c02_error_handling,
+        c02_tests_output,
     )
 
 

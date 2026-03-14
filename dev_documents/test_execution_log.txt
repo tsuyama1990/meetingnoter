@@ -2,31 +2,24 @@
 platform linux -- Python 3.12.13, pytest-9.0.2, pluggy-1.6.0
 rootdir: /app
 configfile: pyproject.toml
-testpaths: tests
 plugins: cov-7.0.0, anyio-4.12.1
-collected 17 items
+collected 21 items
 
-tests/e2e/test_integration_01.py ..                                      [ 11%]
-tests/unit/test_domain_models.py ...............                         [100%]
+tests/e2e/test_integration_01.py ..                                      [  9%]
+tests/unit/test_domain_models.py ...................                     [100%]
 
 ================================ tests coverage ================================
 _______________ coverage: platform linux, python 3.12.13-final-0 _______________
 
 Name                                         Stmts   Miss  Cover   Missing
 --------------------------------------------------------------------------
+main.py                                         61     27    56%   29, 71-72, 84-86, 99-144, 148
 src/domain_models/__init__.py                    5      0   100%
 src/domain_models/audio.py                      27      0   100%
-src/domain_models/config.py                     11      0   100%
+src/domain_models/config.py                     25     12    52%   13-29
 src/domain_models/interfaces.py                 13      0   100%
 src/domain_models/transcription.py              38      0   100%
-src/meetingnoter/__init__.py                     0      0   100%
-src/meetingnoter/ingestion/drive_client.py      31     26    16%   10, 15-47
-src/meetingnoter/processing/chunker.py          44     37    16%   12, 17-115
-src/meetingnoter/processing/diarizer.py         49     44    10%   8-9, 12-37, 41-79
-src/meetingnoter/processing/transcriber.py      57     52     9%   16-24, 27-42, 48-105
-src/meetingnoter/processing/vad.py              79     72     9%   16-21, 24-53, 56-92, 96-122
+src/meetingnoter/ingestion/drive_client.py      46      3    93%   51, 57, 63
 --------------------------------------------------------------------------
-TOTAL                                          354    231    35%
-============================== 17 passed in 6.80s ==============================
-/app/.venv/lib/python3.12/site-packages/coverage/inorout.py:561: CoverageWarning: Module dev_src was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.13.4/messages.html#warning-module-not-imported
-  self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")
+TOTAL                                          215     42    80%
+============================== 21 passed in 9.26s ==============================
