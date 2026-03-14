@@ -1,14 +1,13 @@
 import tempfile
 
 from domain_models import AudioSource, StorageClient
-from meetingnoter.utils.secrets import _get_secret
 
 
 class GoogleDriveClient(StorageClient):
     """Concrete implementation for downloading from Google Drive."""
 
-    def __init__(self) -> None:
-        self.api_key = _get_secret("GOOGLE_API_KEY")
+    def __init__(self, api_key: str) -> None:
+        self.api_key = api_key
 
     def download(self, file_id: str) -> AudioSource:
         # Instead of importing heavy google apis in this cycle, we use subprocess or basic mocking

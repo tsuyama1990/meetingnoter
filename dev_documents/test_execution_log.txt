@@ -14,19 +14,20 @@ _______________ coverage: platform linux, python 3.12.13-final-0 _______________
 
 Name                                         Stmts   Miss  Cover   Missing
 --------------------------------------------------------------------------
-src/domain_models/__init__.py                    4      0   100%
+src/domain_models/__init__.py                    5      0   100%
 src/domain_models/audio.py                      27      0   100%
+src/domain_models/config.py                      6      0   100%
 src/domain_models/interfaces.py                 13      0   100%
 src/domain_models/transcription.py              38      0   100%
 src/meetingnoter/__init__.py                     0      0   100%
-src/meetingnoter/ingestion/drive_client.py      36     30    17%   11, 20-53
+src/meetingnoter/ingestion/drive_client.py      35     30    14%   10, 19-52
 src/meetingnoter/processing/chunker.py          44     37    16%   12, 17-96
-src/meetingnoter/processing/diarizer.py         44     38    14%   10-11, 14-33, 37-75
-src/meetingnoter/processing/transcriber.py      42     37    12%   9-11, 14-27, 31-76
-src/meetingnoter/processing/vad.py              79     71    10%   10-15, 18-44, 47-83, 87-113
+src/meetingnoter/processing/diarizer.py         49     44    10%   9-10, 13-38, 42-80
+src/meetingnoter/processing/transcriber.py      51     46    10%   9-11, 14-27, 31-87
+src/meetingnoter/processing/vad.py              89     82     8%   10-15, 18-61, 64-100, 104-130
 src/meetingnoter/utils/secrets.py               16     12    25%   8-21
 --------------------------------------------------------------------------
-TOTAL                                          343    225    34%
-============================== 17 passed in 7.47s ==============================
+TOTAL                                          373    251    33%
+============================== 17 passed in 4.45s ==============================
 /app/.venv/lib/python3.12/site-packages/coverage/inorout.py:561: CoverageWarning: Module dev_src was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.13.4/messages.html#warning-module-not-imported
   self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")

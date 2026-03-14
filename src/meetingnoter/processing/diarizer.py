@@ -1,13 +1,12 @@
 
 from domain_models import AudioChunk, Diarizer, SpeakerLabel
-from meetingnoter.utils.secrets import _get_secret
 
 
 class PyannoteDiarizer(Diarizer):
     """Concrete implementation of Diarizer using pyannote.audio."""
 
-    def __init__(self) -> None:
-        self.auth_token = _get_secret("PYANNOTE_AUTH_TOKEN")
+    def __init__(self, auth_token: str) -> None:
+        self.auth_token = auth_token
         self.pipeline = None
 
     def _load_model(self) -> None:
@@ -19,18 +18,24 @@ class PyannoteDiarizer(Diarizer):
                 msg = "Required library 'pyannote.audio' or 'torch' is not installed."
                 raise ImportError(msg) from e
 
-            try:
-                self.pipeline = Pipeline.from_pretrained( # type: ignore[call-arg, assignment]
-                    "pyannote/speaker-diarization-3.1",
-                    use_auth_token=self.auth_token
-                )
+            import time
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    self.pipeline = Pipeline.from_pretrained( # type: ignore[call-arg, assignment]
+                        "pyannote/speaker-diarization-3.1",
+                        use_auth_token=self.auth_token
+                    )
+                    break
+                except Exception as e:
+                    if attempt == max_retries - 1:
+                        msg = f"Failed to load pyannote pipeline after {max_retries} attempts. Please check HF_AUTH_TOKEN: {e}"
+                        raise RuntimeError(msg) from e
+                    time.sleep(2)
 
-                device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-                if self.pipeline is not None:
-                    self.pipeline.to(device)
-            except Exception as e:
-                msg = f"Failed to load pyannote pipeline. Please check HF_AUTH_TOKEN: {e}"
-                raise RuntimeError(msg) from e
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            if self.pipeline is not None:
+                self.pipeline.to(device)
 
     def diarize(self, chunk: AudioChunk) -> list[SpeakerLabel]:
         """Diarizes the audio using pyannote.audio."""

@@ -36,21 +36,32 @@ class FasterWhisperTranscriber(Transcriber):
             raise FileNotFoundError(msg)
 
         if self.model:
+            import inspect
             import typing
+
+            # Validate parameters supported by the current faster-whisper version
+            sig = inspect.signature(self.model.transcribe)
+            params = {
+                "audio": chunk.chunk_filepath,
+                "language": "ja",
+                "vad_filter": True,
+                "condition_on_previous_text": False,
+                "temperature": [0.0, 0.2],
+            }
+
+            # Conditionally inject advanced Japanese-specific overrides if the current Whisper version supports them
+            if "compression_ratio_threshold" in sig.parameters:
+                params["compression_ratio_threshold"] = None
+            if "log_prob_threshold" in sig.parameters:
+                params["log_prob_threshold"] = None
+            if "no_speech_threshold" in sig.parameters:
+                params["no_speech_threshold"] = None
+
             try:
                 # Based on the ARCHITECTURE SPEC, we must override thresholds for Japanese
                 segments: typing.Iterable[typing.Any]
                 info: typing.Any
-                segments, info = self.model.transcribe(
-                    chunk.chunk_filepath,
-                    language="ja",
-                    vad_filter=True,
-                    condition_on_previous_text=False, # Disable to prevent hallucination loops
-                    compression_ratio_threshold=None, # None to prevent dropping valid Japanese speech
-                    log_prob_threshold=None, # None to prevent dropping low confidence speech
-                    no_speech_threshold=None,
-                    temperature=[0.0, 0.2]
-                )
+                segments, info = self.model.transcribe(**params)
 
                 result: list[TranscriptionSegment] = []
                 for segment in segments:
