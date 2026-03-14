@@ -105,7 +105,7 @@ def main() -> None:
     # 2. Initialize concrete implementations using Dependency Injection
     try:
         storage = GoogleDriveClient(config=config)
-        splitter = FFmpegChunker(chunk_length_minutes=20)
+        splitter = FFmpegChunker(ffmpeg_path=config.ffmpeg_path, chunk_length_minutes=20)
         detector = SileroVADDetector(
             threshold=0.5,
             min_speech_duration_ms=250,

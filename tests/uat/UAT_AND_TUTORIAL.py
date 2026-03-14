@@ -1,3 +1,6 @@
+from collections.abc import Callable
+from typing import Any
+
 import marimo
 
 __generated_with = "0.20.4"
@@ -5,15 +8,15 @@ app = marimo.App(width="medium")
 
 
 @app.cell
-def cell_imports() -> tuple:  # type: ignore[type-arg]
+def cell_imports() -> tuple[Any]:
     import marimo as mo
 
     return (mo,)
 
 
 @app.cell
-def cell_markdown(mo: object) -> object:
-    return mo.md(  # type: ignore[attr-defined]
+def cell_markdown(mo: Any) -> Any:
+    return mo.md(
         r"""
         # CYCLE01 User Acceptance Testing (UAT)
 
@@ -24,24 +27,24 @@ def cell_markdown(mo: object) -> object:
 
 @app.cell
 def cell_tests(
-    mo: object,
+    mo: Any,
 ) -> tuple[
-    object,
-    object,
+    Callable[[], Any],
+    Callable[[], Any],
     type,
-    object,
-    object,
-    object,
-    object,
-    object,
-    object,
-    object,
-    object,
-    object,
-    object,
-    object,
-    object,
-    object,
+    type,
+    type,
+    type,
+    type,
+    type,
+    type,
+    type,
+    type,
+    type,
+    type,
+    type,
+    type,
+    Any,
 ]:
     from pydantic import ValidationError
 
@@ -60,7 +63,7 @@ def cell_tests(
         TranscriptionSegment,
     )
 
-    def test_happy_path() -> object:
+    def test_happy_path() -> Any:
         try:
             source = AudioSource(filepath="sample.m4a", duration_seconds=120.0)
             chunk = AudioChunk(
@@ -86,23 +89,23 @@ def cell_tests(
             assert transcription.start_time >= 0
             assert speaker.speaker_id == "SPEAKER_00"
 
-            return mo.md(f"**Happy Path Passed!**\n\nGenerated Transcript: {transcript}")  # type: ignore[attr-defined]
+            return mo.md(f"**Happy Path Passed!**\n\nGenerated Transcript: {transcript}")
         except Exception as e:
-            return mo.md(f"**Happy Path Failed!** Error: {e}")  # type: ignore[attr-defined]
+            return mo.md(f"**Happy Path Failed!** Error: {e}")
 
-    def test_error_handling() -> object:
+    def test_error_handling() -> Any:
         try:
             # Trigger error: start_time > end_time
             AudioChunk(
                 chunk_filepath="sample_chunk_1.wav", start_time=60.0, end_time=10.0, chunk_index=0
             )
-            return mo.md("**Error Handling Failed:** Exception was not triggered!")  # type: ignore[attr-defined]
+            return mo.md("**Error Handling Failed:** Exception was not triggered!")
         except ValidationError as e:
-            return mo.md(  # type: ignore[attr-defined]
+            return mo.md(
                 f"**Error Handling Passed!** Caught validation error gracefully:\n```\n{e}\n```"
             )
 
-    tests_output = mo.vstack([test_happy_path(), test_error_handling()])  # type: ignore[attr-defined]
+    tests_output = mo.vstack([test_happy_path(), test_error_handling()])
     return (
         test_happy_path,
         test_error_handling,
@@ -124,8 +127,8 @@ def cell_tests(
 
 
 @app.cell
-def cell_markdown_c02(mo: object) -> object:
-    return mo.md(  # type: ignore[attr-defined]
+def cell_markdown_c02(mo: Any) -> Any:
+    return mo.md(
         r"""
         # CYCLE02 User Acceptance Testing (UAT)
 
@@ -135,8 +138,8 @@ def cell_markdown_c02(mo: object) -> object:
 
 
 @app.cell
-def cell_tests_c02(mo: object) -> tuple[object, object]:
-    def test_c02_error_handling() -> object:
+def cell_tests_c02(mo: Any) -> tuple[Callable[[], Any], Any]:
+    def test_c02_error_handling() -> Any:
         from unittest.mock import MagicMock, patch
 
         import requests
@@ -158,13 +161,13 @@ def cell_tests_c02(mo: object) -> tuple[object, object]:
             # This should fail naturally due to the mock raising HTTPError
             client.download("fake_file_id_for_testing_12345")
 
-            return mo.md("**Cycle 02 Error Handling Failed:** Exception was not triggered!")  # type: ignore[attr-defined]
+            return mo.md("**Cycle 02 Error Handling Failed:** Exception was not triggered!")
         except RuntimeError as e:
-            return mo.md(  # type: ignore[attr-defined]
+            return mo.md(
                 f"**Cycle 02 Error Handling Passed!** Caught runtime error gracefully from simulated API failure:\n```\n{e}\n```"
             )
 
-    c02_tests_output = mo.vstack([test_c02_error_handling()])  # type: ignore[attr-defined]
+    c02_tests_output = mo.vstack([test_c02_error_handling()])
     return (
         test_c02_error_handling,
         c02_tests_output,
@@ -175,8 +178,8 @@ if __name__ == "__main__":
     app.run()
 
 @app.cell
-def cell_markdown_c03(mo: object) -> object:
-    return mo.md(  # type: ignore[attr-defined]
+def cell_markdown_c03(mo: Any) -> Any:
+    return mo.md(
         r"""
         # CYCLE03 User Acceptance Testing (UAT)
 
@@ -186,8 +189,8 @@ def cell_markdown_c03(mo: object) -> object:
 
 
 @app.cell
-def cell_tests_c03(mo: object) -> tuple[object, object]:
-    def test_c03_error_handling() -> object:
+def cell_tests_c03(mo: Any) -> tuple[Callable[[], Any], Any]:
+    def test_c03_error_handling() -> Any:
         from pydantic import ValidationError
 
         from domain_models import AudioChunk
@@ -200,13 +203,13 @@ def cell_tests_c03(mo: object) -> tuple[object, object]:
                 end_time=60.0, # Error: end time is before start time
                 chunk_index=1
             )
-            return mo.md("**Cycle 03 Error Handling Failed:** Exception was not triggered!")  # type: ignore[attr-defined]
+            return mo.md("**Cycle 03 Error Handling Failed:** Exception was not triggered!")
         except ValidationError as e:
-            return mo.md(  # type: ignore[attr-defined]
+            return mo.md(
                 f"**Cycle 03 Error Handling Passed!** Caught validation error gracefully:\n```\n{e}\n```"
             )
 
-    c03_tests_output = mo.vstack([test_c03_error_handling()])  # type: ignore[attr-defined]
+    c03_tests_output = mo.vstack([test_c03_error_handling()])
     return (
         test_c03_error_handling,
         c03_tests_output,

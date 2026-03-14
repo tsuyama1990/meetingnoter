@@ -51,6 +51,12 @@ class PipelineConfig(BaseSettings):
         default="silero_vad.jit", description="Local path to verified Silero VAD .jit model"
     )
 
+    # Chunker Configuration
+    ffmpeg_path: str = Field(
+        default_factory=lambda: __import__("shutil").which("ffmpeg") or "ffmpeg",
+        description="Path to the ffmpeg executable",
+    )
+
     # Transcriber Configuration
     transcriber_language: str = Field(default="ja", description="Target language for transcription")
     transcriber_vad_filter: bool = Field(
