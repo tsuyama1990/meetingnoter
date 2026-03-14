@@ -52,18 +52,18 @@ class FasterWhisperTranscriber(Transcriber):
                     temperature=[0.0, 0.2]
                 )
 
-                result = []
+                result: list[TranscriptionSegment] = []
                 for segment in segments:
                     # Convert local chunk timestamps to global timestamps
-                    start_sec = chunk.start_time + segment.start
-                    end_sec = chunk.start_time + segment.end
+                    start_sec: float = chunk.start_time + segment.start
+                    end_sec: float = chunk.start_time + segment.end
 
                     if start_sec < end_sec:
                         result.append(
                             TranscriptionSegment(
                                 start_time=start_sec,
                                 end_time=end_sec,
-                                text=segment.text.strip()
+                                text=str(segment.text.strip())
                             )
                         )
             except Exception as e:

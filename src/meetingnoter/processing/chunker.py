@@ -14,10 +14,10 @@ class FFmpegChunker(AudioSplitter):
     def split(self, source: AudioSource) -> list[AudioChunk]:
         """Physically splits an audio file using FFmpeg into manageable chunks."""
         # Calculate number of chunks
-        num_chunks = math.ceil(source.duration_seconds / self.chunk_length_seconds)
+        num_chunks: int = math.ceil(source.duration_seconds / self.chunk_length_seconds)
 
         import shutil
-        ffmpeg_path = shutil.which("ffmpeg")
+        ffmpeg_path: str | None = shutil.which("ffmpeg")
         if not ffmpeg_path:
             msg = "FFmpeg is not installed or not found in system PATH."
             raise RuntimeError(msg)
@@ -50,12 +50,12 @@ class FFmpegChunker(AudioSplitter):
                     chunk_index=0
                 )]
 
-            chunks = []
+            chunks: list[AudioChunk] = []
             from pathlib import Path
             for i in range(num_chunks):
-                start_time = i * self.chunk_length_seconds
-                end_time = min((i + 1) * self.chunk_length_seconds, source.duration_seconds)
-                duration = end_time - start_time
+                start_time: float = i * self.chunk_length_seconds
+                end_time: float = min((i + 1) * self.chunk_length_seconds, source.duration_seconds)
+                duration: float = end_time - start_time
 
                 with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as chunk_file:
                     pass

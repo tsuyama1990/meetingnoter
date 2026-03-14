@@ -1,17 +1,14 @@
-import os
 import tempfile
 
 from domain_models import AudioSource, StorageClient
+from meetingnoter.utils.secrets import _get_secret
 
 
 class GoogleDriveClient(StorageClient):
     """Concrete implementation for downloading from Google Drive."""
 
-    def __init__(self, api_key: str | None = None) -> None:
-        self.api_key = api_key or os.environ.get("GOOGLE_API_KEY")
-        if not self.api_key:
-            msg = "GOOGLE_API_KEY must be provided via argument or environment variable."
-            raise ValueError(msg)
+    def __init__(self) -> None:
+        self.api_key = _get_secret("GOOGLE_API_KEY")
 
     def download(self, file_id: str) -> AudioSource:
         # Instead of importing heavy google apis in this cycle, we use subprocess or basic mocking
@@ -29,22 +26,24 @@ class GoogleDriveClient(StorageClient):
 
         import pathlib
         temp_file_path = ""
+        from typing import Any
         try:
-            service = build('drive', 'v3', developerKey=self.api_key)
-            request = service.files().get_media(fileId=file_id)
+            service: Any = build('drive', 'v3', developerKey=self.api_key)
+            request: Any = service.files().get_media(fileId=file_id)
 
             with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_file:
                 temp_file_path = temp_file.name
-                downloader = MediaIoBaseDownload(temp_file, request)
-                done = False
+                downloader: Any = MediaIoBaseDownload(temp_file, request)
+                done: bool = False
                 while done is False:
+                    status: Any
                     status, done = downloader.next_chunk()
 
             import wave
             with wave.open(temp_file_path, 'rb') as wav:
-                frames = wav.getnframes()
-                rate = wav.getframerate()
-                duration = frames / float(rate)
+                frames: int = wav.getnframes()
+                rate: int = wav.getframerate()
+                duration: float = frames / float(rate)
 
             return AudioSource(filepath=temp_file_path, duration_seconds=duration)
         except Exception as e:

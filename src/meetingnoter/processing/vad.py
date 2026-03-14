@@ -1,14 +1,16 @@
+import typing
 from domain_models import AudioChunk, SpeechDetector, SpeechSegment
+from meetingnoter.utils.secrets import _get_secret
 
 
 class SileroVADDetector(SpeechDetector):
     """Concrete implementation of SpeechDetector using Silero VAD."""
 
-    def __init__(self, threshold: float = 0.5, min_speech_duration_ms: int = 250, min_silence_duration_ms: int = 1000, model_path: str | None = None) -> None:
+    def __init__(self, threshold: float = 0.5, min_speech_duration_ms: int = 250, min_silence_duration_ms: int = 1000) -> None:
         self.threshold = threshold
         self.min_speech_duration_ms = min_speech_duration_ms
         self.min_silence_duration_ms = min_silence_duration_ms
-        self.model_path = model_path
+        self.model_path = _get_secret("SILERO_VAD_MODEL_PATH")
         self.model = None
         self.utils = None
 
@@ -41,6 +43,45 @@ class SileroVADDetector(SpeechDetector):
                 msg = f"Failed to securely load Silero VAD model from local cache: {e}"
                 raise RuntimeError(msg) from e
 
+    def _parse_probabilities(self, probs: "typing.Any", chunk: AudioChunk) -> list[SpeechSegment]:
+        segments: list[SpeechSegment] = []
+        speech_chunks: list[tuple[float, float]] = []
+        is_speech: bool = False
+        speech_start: float = 0.0
+
+        # Assuming out shape [time], and 1 frame corresponds to ~32ms roughly based on architecture
+        frame_duration: float = 0.032
+
+        for idx in range(len(probs)):
+            prob: float = float(probs[idx].item())
+            time_sec: float = idx * frame_duration
+
+            if prob > self.threshold and not is_speech:
+                is_speech = True
+                speech_start = time_sec
+            elif prob < self.threshold and is_speech:
+                is_speech = False
+                if (time_sec - speech_start) * 1000 >= self.min_speech_duration_ms:
+                    speech_chunks.append((speech_start, time_sec))
+
+        if is_speech:
+            speech_chunks.append((speech_start, float(len(probs)) * frame_duration))
+
+        # Map local timestamps to global offsets
+        for (start, end) in speech_chunks:
+            global_start: float = chunk.start_time + start
+            global_end: float = chunk.start_time + end
+            global_end = min(global_end, chunk.end_time)
+
+            if global_start < global_end:
+                segments.append(SpeechSegment(start_time=global_start, end_time=global_end))
+
+        # If everything failed or it missed the gating but model executed, don't drop the chunk blindly
+        if len(segments) == 0 and float(probs.mean().item()) > self.threshold:
+             segments.append(SpeechSegment(start_time=chunk.start_time, end_time=chunk.end_time))
+
+        return segments
+
     def detect_speech(self, chunk: AudioChunk) -> list[SpeechSegment]:
         """Detects speech segments using Silero VAD logic."""
         self._load_model()
@@ -57,17 +98,11 @@ class SileroVADDetector(SpeechDetector):
                 wav = wav.mean(dim=0, keepdim=True) if wav.shape[0] > 1 else wav
 
                 # Run model directly
-                # (For the sake of satisfying the architectural requirement without rewriting
-                # Silero's 1000-line utility script, we invoke the model directly to get raw probabilities)
                 with torch.no_grad():
                     out = self.model(wav)
 
-                # Extremely simplified fallback gating logic since we cannot load their utils script securely.
-                # In Cycle 04 this should be expanded.
-                segments = []
-                # Assuming out is probability array, if mean prob > threshold, count whole as speech
-                if out.mean().item() > self.threshold:
-                     segments.append(SpeechSegment(start_time=chunk.start_time, end_time=chunk.end_time))
+                probs = out.squeeze()
+                segments = self._parse_probabilities(probs, chunk)
             except Exception as e:
                 msg = f"Silero VAD processing failed: {e}"
                 raise RuntimeError(msg) from e

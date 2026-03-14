@@ -1,16 +1,13 @@
-import os
 
 from domain_models import AudioChunk, Diarizer, SpeakerLabel
+from meetingnoter.utils.secrets import _get_secret
 
 
 class PyannoteDiarizer(Diarizer):
     """Concrete implementation of Diarizer using pyannote.audio."""
 
-    def __init__(self, auth_token: str | None = None) -> None:
-        self.auth_token = auth_token or os.environ.get("PYANNOTE_AUTH_TOKEN")
-        if not self.auth_token:
-            msg = "PYANNOTE_AUTH_TOKEN must be provided via argument or environment variable."
-            raise ValueError(msg)
+    def __init__(self) -> None:
+        self.auth_token = _get_secret("PYANNOTE_AUTH_TOKEN")
         self.pipeline = None
 
     def _load_model(self) -> None:
@@ -54,18 +51,18 @@ class PyannoteDiarizer(Diarizer):
                     num_workers=4
                 )
 
-                labels = []
+                labels: list[SpeakerLabel] = []
                 for turn, _, speaker in diarization.itertracks(yield_label=True):
                     # Turn is a pyannote.core.Segment object
-                    start_sec = chunk.start_time + turn.start
-                    end_sec = chunk.start_time + turn.end
+                    start_sec: float = chunk.start_time + turn.start
+                    end_sec: float = chunk.start_time + turn.end
 
                     if start_sec < end_sec:
                         labels.append(
                             SpeakerLabel(
                                 start_time=start_sec,
                                 end_time=end_sec,
-                                speaker_id=speaker
+                                speaker_id=str(speaker)
                             )
                         )
             except Exception as e:

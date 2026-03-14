@@ -1,5 +1,4 @@
 import logging
-import os
 import sys
 from pathlib import Path
 
@@ -19,6 +18,7 @@ from meetingnoter.processing.chunker import FFmpegChunker
 from meetingnoter.processing.diarizer import PyannoteDiarizer
 from meetingnoter.processing.transcriber import FasterWhisperTranscriber
 from meetingnoter.processing.vad import SileroVADDetector
+from meetingnoter.utils.secrets import _get_secret
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -82,23 +82,6 @@ def run_pipeline(
 
     return DiarizedTranscript(segments=all_segments)
 
-def _get_secret(key: str) -> str:
-    """Helper to securely get credentials from environment or colab userdata."""
-    val = os.environ.get(key)
-    if val:
-        return val
-
-    try:
-        from google.colab import userdata
-        val = userdata.get(key)
-        if val:
-            return str(val)
-    except Exception as e:
-        logger.debug("Colab userdata not available or failed: %s", e)
-
-    msg = f"Missing required credential: {key}"
-    raise ValueError(msg)
-
 def main() -> None:
     """Main entry point to execute the pipeline using concrete implementations."""
     file_id = _get_secret("MEETINGNOTER_FILE_ID") if len(sys.argv) <= 1 else sys.argv[1]
@@ -109,15 +92,11 @@ def main() -> None:
 
     # Initialize concrete implementations
     try:
-        google_api_key = _get_secret("GOOGLE_API_KEY")
-        pyannote_token = _get_secret("PYANNOTE_AUTH_TOKEN")
-        vad_model_path = _get_secret("SILERO_VAD_MODEL_PATH")
-
-        storage = GoogleDriveClient(api_key=google_api_key)
+        storage = GoogleDriveClient()
         splitter = FFmpegChunker(chunk_length_minutes=20)
-        detector = SileroVADDetector(threshold=0.5, min_speech_duration_ms=250, min_silence_duration_ms=1000, model_path=vad_model_path)
+        detector = SileroVADDetector(threshold=0.5, min_speech_duration_ms=250, min_silence_duration_ms=1000)
         transcriber = FasterWhisperTranscriber(model_size="large-v3", compute_type="int8")
-        diarizer = PyannoteDiarizer(auth_token=pyannote_token)
+        diarizer = PyannoteDiarizer()
     except ValueError:
         logger.exception("Failed to initialize pipeline components. Check required credentials.")
         sys.exit(1)
