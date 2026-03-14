@@ -1,6 +1,6 @@
+import logging
 import os
 import sys
-import logging
 from pathlib import Path
 
 from domain_models import (
@@ -42,35 +42,38 @@ def run_pipeline(
 
     # 3. Process each chunk
     for chunk in chunks:
-        # VAD gating
-        speech_segments = detector.detect_speech(chunk)
-
-        # Transcribe with faster-whisper
-        transcriptions = transcriber.transcribe(chunk, speech_segments)
-
-        # Diarize with Pyannote
-        speaker_labels = diarizer.diarize(chunk)
-
-        # Aggregate results
-        for t, s in zip(transcriptions, speaker_labels, strict=False):
-            all_segments.append(
-                DiarizedSegment(
-                    start_time=t.start_time,
-                    end_time=t.end_time,
-                    text=t.text,
-                    speaker_id=s.speaker_id
-                )
-            )
-
-        # Clear GPU memory after each heavy chunk to prevent OOM
-        import gc
-        gc.collect()
         try:
-            import torch
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-        except ImportError:
-            pass
+            # VAD gating
+            speech_segments = detector.detect_speech(chunk)
+
+            # Transcribe with faster-whisper
+            transcriptions = transcriber.transcribe(chunk, speech_segments)
+
+            # Diarize with Pyannote
+            speaker_labels = diarizer.diarize(chunk)
+
+            # Aggregate results
+            for t, s in zip(transcriptions, speaker_labels, strict=False):
+                all_segments.append(
+                    DiarizedSegment(
+                        start_time=t.start_time,
+                        end_time=t.end_time,
+                        text=t.text,
+                        speaker_id=s.speaker_id
+                    )
+                )
+        except Exception:
+            logger.exception("Failed to process chunk %d. Skipping and continuing.", chunk.chunk_index)
+        finally:
+            # Clear GPU memory after each heavy chunk to prevent OOM
+            import gc
+            gc.collect()
+            try:
+                import torch
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+            except ImportError:
+                pass
 
     # Cleanup temp files
     Path(source.filepath).unlink(missing_ok=True)
@@ -79,11 +82,26 @@ def run_pipeline(
 
     return DiarizedTranscript(segments=all_segments)
 
+def _get_secret(key: str) -> str:
+    """Helper to securely get credentials from environment or colab userdata."""
+    val = os.environ.get(key)
+    if val:
+        return val
+
+    try:
+        from google.colab import userdata
+        val = userdata.get(key)
+        if val:
+            return str(val)
+    except Exception as e:
+        logger.debug("Colab userdata not available or failed: %s", e)
+
+    msg = f"Missing required credential: {key}"
+    raise ValueError(msg)
+
 def main() -> None:
     """Main entry point to execute the pipeline using concrete implementations."""
-    file_id = os.environ.get("MEETINGNOTER_FILE_ID")
-    if len(sys.argv) > 1:
-        file_id = sys.argv[1]
+    file_id = _get_secret("MEETINGNOTER_FILE_ID") if len(sys.argv) <= 1 else sys.argv[1]
 
     if not file_id:
         logger.error("No file_id provided. Set MEETINGNOTER_FILE_ID or pass as argument.")
@@ -91,13 +109,17 @@ def main() -> None:
 
     # Initialize concrete implementations
     try:
-        storage = GoogleDriveClient(api_key=os.environ.get("GOOGLE_API_KEY"))
+        google_api_key = _get_secret("GOOGLE_API_KEY")
+        pyannote_token = _get_secret("PYANNOTE_AUTH_TOKEN")
+        vad_model_path = _get_secret("SILERO_VAD_MODEL_PATH")
+
+        storage = GoogleDriveClient(api_key=google_api_key)
         splitter = FFmpegChunker(chunk_length_minutes=20)
-        detector = SileroVADDetector(threshold=0.5, min_speech_duration_ms=250, min_silence_duration_ms=1000)
+        detector = SileroVADDetector(threshold=0.5, min_speech_duration_ms=250, min_silence_duration_ms=1000, model_path=vad_model_path)
         transcriber = FasterWhisperTranscriber(model_size="large-v3", compute_type="int8")
-        diarizer = PyannoteDiarizer(auth_token=os.environ.get("PYANNOTE_AUTH_TOKEN"))
+        diarizer = PyannoteDiarizer(auth_token=pyannote_token)
     except ValueError:
-        logger.exception("Failed to initialize pipeline components")
+        logger.exception("Failed to initialize pipeline components. Check required credentials.")
         sys.exit(1)
 
     # Execute pipeline

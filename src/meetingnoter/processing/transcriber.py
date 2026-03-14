@@ -36,9 +36,12 @@ class FasterWhisperTranscriber(Transcriber):
             raise FileNotFoundError(msg)
 
         if self.model:
+            import typing
             try:
                 # Based on the ARCHITECTURE SPEC, we must override thresholds for Japanese
-                segments, _ = self.model.transcribe(
+                segments: typing.Iterable[typing.Any]
+                info: typing.Any
+                segments, info = self.model.transcribe(
                     chunk.chunk_filepath,
                     language="ja",
                     vad_filter=True,
@@ -63,10 +66,11 @@ class FasterWhisperTranscriber(Transcriber):
                                 text=segment.text.strip()
                             )
                         )
-                return result
             except Exception as e:
                 msg = f"Faster whisper transcription failed: {e}"
                 raise RuntimeError(msg) from e
+            else:
+                return result
 
         msg = "Faster Whisper model was not properly loaded."
         raise RuntimeError(msg)

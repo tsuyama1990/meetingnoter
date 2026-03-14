@@ -19,13 +19,13 @@ src/domain_models/audio.py                      27      0   100%
 src/domain_models/interfaces.py                 13      0   100%
 src/domain_models/transcription.py              38      0   100%
 src/meetingnoter/__init__.py                     0      0   100%
-src/meetingnoter/ingestion/drive_client.py      33     27    18%   11-14, 23-49
+src/meetingnoter/ingestion/drive_client.py      38     32    16%   11-14, 23-54
 src/meetingnoter/processing/chunker.py          44     37    16%   12, 17-96
-src/meetingnoter/processing/diarizer.py         46     40    13%   10-14, 17-36, 40-76
-src/meetingnoter/processing/transcriber.py      41     36    12%   9-11, 14-27, 31-72
-src/meetingnoter/processing/vad.py              41     36    12%   8-12, 15-34, 38-70
+src/meetingnoter/processing/diarizer.py         47     41    13%   10-14, 17-36, 40-78
+src/meetingnoter/processing/transcriber.py      42     37    12%   9-11, 14-27, 31-76
+src/meetingnoter/processing/vad.py              51     46    10%   8-13, 16-42, 46-78
 --------------------------------------------------------------------------
-TOTAL                                          287    176    39%
-============================== 17 passed in 4.67s ==============================
+TOTAL                                          304    193    37%
+============================== 17 passed in 4.43s ==============================
 /app/.venv/lib/python3.12/site-packages/coverage/inorout.py:561: CoverageWarning: Module dev_src was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.13.4/messages.html#warning-module-not-imported
   self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")

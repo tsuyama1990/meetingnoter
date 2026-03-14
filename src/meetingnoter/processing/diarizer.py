@@ -45,9 +45,10 @@ class PyannoteDiarizer(Diarizer):
             raise FileNotFoundError(msg)
 
         if self.pipeline:
+            from typing import Any
             try:
                 # Apply the specific configuration for Japanese overlap speech mentioned in SPEC
-                diarization = self.pipeline(
+                diarization: Any = self.pipeline(
                     chunk.chunk_filepath,
                     exclusive=True, # Prevent overlapping labels which cause Speaker Confusion
                     num_workers=4
@@ -67,10 +68,11 @@ class PyannoteDiarizer(Diarizer):
                                 speaker_id=speaker
                             )
                         )
-                return labels
             except Exception as e:
                 msg = f"Pyannote diarization failed: {e}"
                 raise RuntimeError(msg) from e
+            else:
+                return labels
 
         msg = "Pyannote pipeline was not properly loaded."
         raise RuntimeError(msg)

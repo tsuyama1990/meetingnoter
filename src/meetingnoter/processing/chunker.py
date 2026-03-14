@@ -28,7 +28,7 @@ class FFmpegChunker(AudioSplitter):
                 # Using ffmpeg to copy and guarantee format.
                 with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as chunk_file:
                     pass
-                subprocess.run(
+                subprocess.run( # noqa: S603
                     [
                         ffmpeg_path, "-y", "-i", source.filepath,
                         "-ac", "1", "-ar", "16000",
@@ -36,7 +36,7 @@ class FFmpegChunker(AudioSplitter):
                     ],
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
-                    check=True
+                    check=True,
                 )
                 from pathlib import Path
                 if Path(chunk_file.name).stat().st_size == 0:
@@ -61,7 +61,7 @@ class FFmpegChunker(AudioSplitter):
                     pass
 
                 # Execute real ffmpeg split
-                subprocess.run(
+                subprocess.run( # noqa: S603
                     [
                         ffmpeg_path, "-y", "-i", source.filepath,
                         "-ss", str(start_time),
@@ -71,7 +71,7 @@ class FFmpegChunker(AudioSplitter):
                     ],
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
-                    check=True
+                    check=True,
                 )
 
                 if Path(chunk_file.name).stat().st_size > 0:
@@ -86,11 +86,11 @@ class FFmpegChunker(AudioSplitter):
                 else:
                     msg = f"FFmpeg chunk {i} is empty."
                     raise RuntimeError(msg)
-
-            return chunks
         except FileNotFoundError as e:
             msg = "FFmpeg is not installed or not found in system PATH."
             raise RuntimeError(msg) from e
         except subprocess.CalledProcessError as e:
             msg = f"FFmpeg chunking failed: {e}"
             raise RuntimeError(msg) from e
+        else:
+            return chunks

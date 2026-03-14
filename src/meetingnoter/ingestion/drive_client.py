@@ -27,23 +27,28 @@ class GoogleDriveClient(StorageClient):
             msg = "Required library 'google-api-python-client' is not installed."
             raise ImportError(msg) from e
 
+        import pathlib
+        temp_file_path = ""
         try:
             service = build('drive', 'v3', developerKey=self.api_key)
             request = service.files().get_media(fileId=file_id)
 
             with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_file:
+                temp_file_path = temp_file.name
                 downloader = MediaIoBaseDownload(temp_file, request)
                 done = False
                 while done is False:
                     status, done = downloader.next_chunk()
 
             import wave
-            with wave.open(temp_file.name, 'rb') as wav:
+            with wave.open(temp_file_path, 'rb') as wav:
                 frames = wav.getnframes()
                 rate = wav.getframerate()
                 duration = frames / float(rate)
 
-            return AudioSource(filepath=temp_file.name, duration_seconds=duration)
+            return AudioSource(filepath=temp_file_path, duration_seconds=duration)
         except Exception as e:
+            if temp_file_path and pathlib.Path(temp_file_path).exists():
+                pathlib.Path(temp_file_path).unlink()
             msg = f"Failed to download file {file_id} from Google Drive: {e}"
             raise RuntimeError(msg) from e
