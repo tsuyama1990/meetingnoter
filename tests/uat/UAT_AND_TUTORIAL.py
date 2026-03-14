@@ -5,7 +5,7 @@ app = marimo.App(width="medium")
 
 
 @app.cell
-def cell_imports() -> tuple: # type: ignore[type-arg]
+def cell_imports() -> tuple:  # type: ignore[type-arg]
     import marimo as mo
 
     return (mo,)
@@ -13,7 +13,7 @@ def cell_imports() -> tuple: # type: ignore[type-arg]
 
 @app.cell
 def cell_markdown(mo: object) -> None:
-    mo.md( # type: ignore[attr-defined]
+    mo.md(  # type: ignore[attr-defined]
         r"""
         # CYCLE01 User Acceptance Testing (UAT)
 
@@ -23,16 +23,21 @@ def cell_markdown(mo: object) -> None:
 
 
 @app.cell
-def cell_tests(mo: object) -> tuple: # type: ignore[type-arg]
+def cell_tests(mo: object) -> tuple:  # type: ignore[type-arg]
     from pydantic import ValidationError
 
     from domain_models import (
         AudioChunk,
         AudioSource,
+        AudioSplitter,
         DiarizedSegment,
         DiarizedTranscript,
+        Diarizer,
         SpeakerLabel,
+        SpeechDetector,
         SpeechSegment,
+        StorageClient,
+        Transcriber,
         TranscriptionSegment,
     )
 
@@ -62,9 +67,9 @@ def cell_tests(mo: object) -> tuple: # type: ignore[type-arg]
             assert transcription.start_time >= 0
             assert speaker.speaker_id == "SPEAKER_00"
 
-            return mo.md(f"**Happy Path Passed!**\n\nGenerated Transcript: {transcript}") # type: ignore[attr-defined]
+            return mo.md(f"**Happy Path Passed!**\n\nGenerated Transcript: {transcript}")  # type: ignore[attr-defined]
         except Exception as e:
-            return mo.md(f"**Happy Path Failed!** Error: {e}") # type: ignore[attr-defined]
+            return mo.md(f"**Happy Path Failed!** Error: {e}")  # type: ignore[attr-defined]
 
     def test_error_handling() -> object:
         try:
@@ -72,13 +77,13 @@ def cell_tests(mo: object) -> tuple: # type: ignore[type-arg]
             AudioChunk(
                 chunk_filepath="sample_chunk_1.wav", start_time=60.0, end_time=10.0, chunk_index=0
             )
-            return mo.md("**Error Handling Failed:** Exception was not triggered!") # type: ignore[attr-defined]
+            return mo.md("**Error Handling Failed:** Exception was not triggered!")  # type: ignore[attr-defined]
         except ValidationError as e:
-            return mo.md( # type: ignore[attr-defined]
+            return mo.md(  # type: ignore[attr-defined]
                 f"**Error Handling Passed!** Caught validation error gracefully:\n```\n{e}\n```"
             )
 
-    mo.vstack([test_happy_path(), test_error_handling()]) # type: ignore[attr-defined]
+    mo.vstack([test_happy_path(), test_error_handling()])  # type: ignore[attr-defined]
     return (
         test_happy_path,
         test_error_handling,
@@ -90,6 +95,11 @@ def cell_tests(mo: object) -> tuple: # type: ignore[type-arg]
         SpeakerLabel,
         DiarizedSegment,
         DiarizedTranscript,
+        StorageClient,
+        AudioSplitter,
+        SpeechDetector,
+        Transcriber,
+        Diarizer,
     )
 
 

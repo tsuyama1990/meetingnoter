@@ -1,3 +1,6 @@
+import tempfile
+from unittest.mock import MagicMock
+
 import pytest
 from pydantic import ValidationError
 
@@ -15,29 +18,33 @@ from domain_models import (
 
 
 def test_audio_source_valid() -> None:
-    source = AudioSource(filepath="/mock_dir/audio.wav", duration_seconds=60.0)
-    assert source.filepath == "/mock_dir/audio.wav"
-    assert source.duration_seconds == 60.0
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf:
+        source = AudioSource(filepath=tf.name, duration_seconds=60.0)
+        assert source.filepath == tf.name
+        assert source.duration_seconds == 60.0
 
 
 def test_audio_source_invalid_duration() -> None:
-    with pytest.raises(ValidationError):
-        AudioSource(filepath="/mock_dir/audio.wav", duration_seconds=0)
+    with (
+        tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf,
+        pytest.raises(ValidationError),
+    ):
+        AudioSource(filepath=tf.name, duration_seconds=0)
 
 
 def test_audio_chunk_valid() -> None:
-    chunk = AudioChunk(
-        chunk_filepath="/mock_dir/chunk1.wav", start_time=0.0, end_time=30.0, chunk_index=0
-    )
-    assert chunk.start_time == 0.0
-    assert chunk.end_time == 30.0
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf:
+        chunk = AudioChunk(chunk_filepath=tf.name, start_time=0.0, end_time=30.0, chunk_index=0)
+        assert chunk.start_time == 0.0
+        assert chunk.end_time == 30.0
 
 
 def test_audio_chunk_invalid_ordering() -> None:
-    with pytest.raises(ValidationError, match="start_time must be strictly less than end_time"):
-        AudioChunk(
-            chunk_filepath="/mock_dir/chunk1.wav", start_time=30.0, end_time=10.0, chunk_index=0
-        )
+    with (
+        tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf,
+        pytest.raises(ValidationError, match="start_time must be strictly less than end_time"),
+    ):
+        AudioChunk(chunk_filepath=tf.name, start_time=30.0, end_time=10.0, chunk_index=0)
 
 
 def test_speech_segment_valid() -> None:
@@ -86,32 +93,31 @@ def test_diarized_transcript_valid() -> None:
     assert len(transcript.segments) == 1
 
 
-# Mock Interfaces for validation checks
-class MockStorageClient:
-    def download(self, file_id: str) -> AudioSource:
-        return AudioSource(filepath=f"/mock_dir/{file_id}.wav", duration_seconds=60.0)
-
-
-class MockAudioSplitter:
-    def split(self, source: AudioSource) -> list[AudioChunk]:
-        return [
-            AudioChunk(
-                chunk_filepath="/mock_dir/chunk.wav",
-                start_time=0.0,
-                end_time=source.duration_seconds,
-                chunk_index=0,
-            )
-        ]
-
-
 def test_mock_storage_client_implements_protocol() -> None:
-    client: StorageClient = MockStorageClient()
+    client: StorageClient = MagicMock(spec=StorageClient)
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf:
+        mock_source = AudioSource(filepath=tf.name, duration_seconds=60.0)
+
+    # We must explicitly set the type of the mock return to please mypy
+    client.download = MagicMock(return_value=mock_source)  # type: ignore[method-assign]
+
     source = client.download("test_id")
     assert isinstance(source, AudioSource)
+    assert source.duration_seconds == 60.0
 
 
 def test_mock_audio_splitter_implements_protocol() -> None:
-    splitter: AudioSplitter = MockAudioSplitter()
-    chunks = splitter.split(AudioSource(filepath="/mock_dir/audio.wav", duration_seconds=60.0))
+    splitter: AudioSplitter = MagicMock(spec=AudioSplitter)
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf_chunk:
+        mock_chunk = AudioChunk(
+            chunk_filepath=tf_chunk.name, start_time=0.0, end_time=60.0, chunk_index=0
+        )
+
+    splitter.split = MagicMock(return_value=[mock_chunk])  # type: ignore[method-assign]
+
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf_source:
+        chunks = splitter.split(AudioSource(filepath=tf_source.name, duration_seconds=60.0))
+
     assert len(chunks) == 1
     assert isinstance(chunks[0], AudioChunk)
+    assert chunks[0].start_time == 0.0

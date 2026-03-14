@@ -1,3 +1,5 @@
+import tempfile
+
 from domain_models import (
     AudioChunk,
     AudioSource,
@@ -16,19 +18,18 @@ from domain_models import (
 
 class DummyStorageClient:
     def download(self, file_id: str) -> AudioSource:
-        return AudioSource(filepath=f"/mock_dir/{file_id}.wav", duration_seconds=60.0)
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf:
+            return AudioSource(filepath=tf.name, duration_seconds=60.0)
 
 
 class DummyAudioSplitter:
     def split(self, source: AudioSource) -> list[AudioChunk]:
-        return [
-            AudioChunk(
-                chunk_filepath="/mock_dir/chunk0.wav", start_time=0.0, end_time=30.0, chunk_index=0
-            ),
-            AudioChunk(
-                chunk_filepath="/mock_dir/chunk1.wav", start_time=30.0, end_time=60.0, chunk_index=1
-            ),
-        ]
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf0, \
+             tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf1:
+            return [
+                AudioChunk(chunk_filepath=tf0.name, start_time=0.0, end_time=30.0, chunk_index=0),
+                AudioChunk(chunk_filepath=tf1.name, start_time=30.0, end_time=60.0, chunk_index=1)
+            ]
 
 
 class DummySpeechDetector:
@@ -37,27 +38,29 @@ class DummySpeechDetector:
 
 
 class DummyTranscriber:
-    def transcribe(
-        self, chunk: AudioChunk, speech_segments: list[SpeechSegment]
-    ) -> list[TranscriptionSegment]:
-        return [
-            TranscriptionSegment(
-                start_time=seg.start_time, end_time=seg.end_time, text=f"Text {seg.start_time}"
-            )
-            for seg in speech_segments
-        ]
+    def transcribe(self, chunk: AudioChunk, speech_segments: list[SpeechSegment]) -> list[TranscriptionSegment]:
+        return [TranscriptionSegment(start_time=seg.start_time, end_time=seg.end_time, text=f"Text {seg.start_time}") for seg in speech_segments]
 
 
 class DummyDiarizer:
     def diarize(self, chunk: AudioChunk) -> list[SpeakerLabel]:
-        return [
-            SpeakerLabel(
-                start_time=chunk.start_time,
-                end_time=chunk.start_time + 10.0,
-                speaker_id="SPEAKER_00",
-            )
-        ]
+        return [SpeakerLabel(start_time=chunk.start_time, end_time=chunk.start_time + 10.0, speaker_id="SPEAKER_00")]
 
+
+def test_pipeline_integration_failure() -> None:
+    # Test handling of download failures
+    storage: StorageClient = DummyStorageClient()
+
+    # Overwrite the mock to simulate failure
+    def failing_download(file_id: str) -> AudioSource:
+        msg = "Network Error"
+        raise RuntimeError(msg)
+
+    storage.download = failing_download # type: ignore[method-assign]
+
+    import pytest
+    with pytest.raises(RuntimeError, match="Network Error"):
+        storage.download("test_id")
 
 def test_pipeline_integration() -> None:
     # 1. Download
