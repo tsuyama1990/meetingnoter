@@ -1,13 +1,26 @@
-
 from domain_models import AudioChunk, SpeechSegment, Transcriber, TranscriptionSegment
 
 
 class FasterWhisperTranscriber(Transcriber):
     """Concrete implementation of Transcriber using faster-whisper."""
 
-    def __init__(self, model_size: str = "large-v3", compute_type: str = "int8") -> None:
+    def __init__(
+        self,
+        model_size: str = "large-v3",
+        compute_type: str = "int8",
+        language: str = "ja",
+        vad_filter: bool = True,
+        condition_on_previous_text: bool = False,
+        temperature: list[float] | None = None,
+    ) -> None:
+        if temperature is None:
+            temperature = [0.0, 0.2]
         self.model_size = model_size
         self.compute_type = compute_type
+        self.language = language
+        self.vad_filter = vad_filter
+        self.condition_on_previous_text = condition_on_previous_text
+        self.temperature = temperature
         self.model = None
 
     def _load_model(self) -> None:
@@ -21,16 +34,21 @@ class FasterWhisperTranscriber(Transcriber):
 
             try:
                 device = "cuda" if torch.cuda.is_available() else "cpu"
-                self.model = WhisperModel(self.model_size, device=device, compute_type=self.compute_type)
+                self.model = WhisperModel(
+                    self.model_size, device=device, compute_type=self.compute_type
+                )
             except Exception as e:
                 msg = f"Failed to load Faster Whisper model: {e}"
                 raise RuntimeError(msg) from e
 
-    def transcribe(self, chunk: AudioChunk, speech_segments: list[SpeechSegment]) -> list[TranscriptionSegment]:
+    def transcribe(
+        self, chunk: AudioChunk, speech_segments: list[SpeechSegment]
+    ) -> list[TranscriptionSegment]:
         """Transcribes speech using faster-whisper logic, heavily customized for Japanese."""
         self._load_model()
 
         from pathlib import Path
+
         if not Path(chunk.chunk_filepath).exists():
             msg = f"Audio chunk file not found: {chunk.chunk_filepath}"
             raise FileNotFoundError(msg)
@@ -43,10 +61,10 @@ class FasterWhisperTranscriber(Transcriber):
             sig = inspect.signature(self.model.transcribe)
             params = {
                 "audio": chunk.chunk_filepath,
-                "language": "ja",
-                "vad_filter": True,
-                "condition_on_previous_text": False,
-                "temperature": [0.0, 0.2],
+                "language": self.language,
+                "vad_filter": self.vad_filter,
+                "condition_on_previous_text": self.condition_on_previous_text,
+                "temperature": self.temperature,
             }
 
             # Conditionally inject advanced Japanese-specific overrides if the current Whisper version supports them
@@ -74,7 +92,7 @@ class FasterWhisperTranscriber(Transcriber):
                             TranscriptionSegment(
                                 start_time=start_sec,
                                 end_time=end_sec,
-                                text=str(segment.text.strip())
+                                text=str(segment.text.strip()),
                             )
                         )
             except Exception as e:

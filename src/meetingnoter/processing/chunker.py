@@ -17,6 +17,7 @@ class FFmpegChunker(AudioSplitter):
         num_chunks: int = math.ceil(source.duration_seconds / self.chunk_length_seconds)
 
         import shutil
+
         ffmpeg_path: str | None = shutil.which("ffmpeg")
         if not ffmpeg_path:
             msg = "FFmpeg is not installed or not found in system PATH."
@@ -28,30 +29,40 @@ class FFmpegChunker(AudioSplitter):
                 # Using ffmpeg to copy and guarantee format.
                 with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as chunk_file:
                     pass
-                subprocess.run( # noqa: S603
+                subprocess.run(  # noqa: S603
                     [
-                        ffmpeg_path, "-y", "-i", source.filepath,
-                        "-ac", "1", "-ar", "16000",
-                        chunk_file.name
+                        ffmpeg_path,
+                        "-y",
+                        "-i",
+                        source.filepath,
+                        "-ac",
+                        "1",
+                        "-ar",
+                        "16000",
+                        chunk_file.name,
                     ],
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                     check=True,
                 )
                 from pathlib import Path
+
                 if Path(chunk_file.name).stat().st_size == 0:
                     msg = "FFmpeg produced an empty file"
                     raise RuntimeError(msg)
 
-                return [AudioChunk(
-                    chunk_filepath=chunk_file.name,
-                    start_time=0.0,
-                    end_time=source.duration_seconds,
-                    chunk_index=0
-                )]
+                return [
+                    AudioChunk(
+                        chunk_filepath=chunk_file.name,
+                        start_time=0.0,
+                        end_time=source.duration_seconds,
+                        chunk_index=0,
+                    )
+                ]
 
             chunks: list[AudioChunk] = []
             from pathlib import Path
+
             for i in range(num_chunks):
                 start_time: float = i * self.chunk_length_seconds
                 end_time: float = min((i + 1) * self.chunk_length_seconds, source.duration_seconds)
@@ -61,13 +72,21 @@ class FFmpegChunker(AudioSplitter):
                     pass
 
                 # Execute real ffmpeg split
-                subprocess.run( # noqa: S603
+                subprocess.run(  # noqa: S603
                     [
-                        ffmpeg_path, "-y", "-i", source.filepath,
-                        "-ss", str(start_time),
-                        "-t", str(duration),
-                        "-ac", "1", "-ar", "16000",
-                        chunk_file.name
+                        ffmpeg_path,
+                        "-y",
+                        "-i",
+                        source.filepath,
+                        "-ss",
+                        str(start_time),
+                        "-t",
+                        str(duration),
+                        "-ac",
+                        "1",
+                        "-ar",
+                        "16000",
+                        chunk_file.name,
                     ],
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
@@ -80,7 +99,7 @@ class FFmpegChunker(AudioSplitter):
                             chunk_filepath=chunk_file.name,
                             start_time=start_time,
                             end_time=end_time,
-                            chunk_index=i
+                            chunk_index=i,
                         )
                     )
                 else:

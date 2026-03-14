@@ -1,4 +1,3 @@
-
 from domain_models import AudioChunk, Diarizer, SpeakerLabel
 
 
@@ -19,12 +18,12 @@ class PyannoteDiarizer(Diarizer):
                 raise ImportError(msg) from e
 
             import time
+
             max_retries = 3
             for attempt in range(max_retries):
                 try:
-                    self.pipeline = Pipeline.from_pretrained( # type: ignore[call-arg, assignment]
-                        "pyannote/speaker-diarization-3.1",
-                        use_auth_token=self.auth_token
+                    self.pipeline = Pipeline.from_pretrained(  # type: ignore[call-arg, assignment]
+                        "pyannote/speaker-diarization-3.1", use_auth_token=self.auth_token
                     )
                     break
                 except Exception as e:
@@ -42,18 +41,20 @@ class PyannoteDiarizer(Diarizer):
         self._load_model()
 
         from pathlib import Path
+
         if not Path(chunk.chunk_filepath).exists():
             msg = f"Audio chunk file not found: {chunk.chunk_filepath}"
             raise FileNotFoundError(msg)
 
         if self.pipeline:
             from typing import Any
+
             try:
                 # Apply the specific configuration for Japanese overlap speech mentioned in SPEC
                 diarization: Any = self.pipeline(
                     chunk.chunk_filepath,
-                    exclusive=True, # Prevent overlapping labels which cause Speaker Confusion
-                    num_workers=4
+                    exclusive=True,  # Prevent overlapping labels which cause Speaker Confusion
+                    num_workers=4,
                 )
 
                 labels: list[SpeakerLabel] = []
@@ -65,9 +66,7 @@ class PyannoteDiarizer(Diarizer):
                     if start_sec < end_sec:
                         labels.append(
                             SpeakerLabel(
-                                start_time=start_sec,
-                                end_time=end_sec,
-                                speaker_id=str(speaker)
+                                start_time=start_sec, end_time=end_sec, speaker_id=str(speaker)
                             )
                         )
             except Exception as e:

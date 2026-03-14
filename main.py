@@ -19,26 +19,15 @@ from meetingnoter.processing.chunker import FFmpegChunker
 from meetingnoter.processing.diarizer import PyannoteDiarizer
 from meetingnoter.processing.transcriber import FasterWhisperTranscriber
 from meetingnoter.processing.vad import SileroVADDetector
-from meetingnoter.utils.secrets import _get_secret
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 def get_config() -> PipelineConfig:
-    import os
-    file_id = _get_secret("MEETINGNOTER_FILE_ID") if len(sys.argv) <= 1 else sys.argv[1]
-    google_api_key = _get_secret("GOOGLE_API_KEY")
-    pyannote_token = _get_secret("PYANNOTE_AUTH_TOKEN")
+    # Resolves directly from ENV due to pydantic BaseSettings
+    return PipelineConfig()  # type: ignore[call-arg]
 
-    # Optional
-    vad_model_path = os.environ.get("SILERO_VAD_MODEL_PATH")
-
-    return PipelineConfig(
-        google_api_key=google_api_key,
-        pyannote_auth_token=pyannote_token,
-        silero_vad_model_path=vad_model_path,
-        file_id=file_id
-    )
 
 def run_pipeline(
     storage: StorageClient,
@@ -46,7 +35,7 @@ def run_pipeline(
     detector: SpeechDetector,
     transcriber: Transcriber,
     diarizer: Diarizer,
-    file_id: str
+    file_id: str,
 ) -> DiarizedTranscript:
     """Orchestrates the entire voice analysis pipeline."""
     # 1. Download audio
@@ -76,17 +65,21 @@ def run_pipeline(
                         start_time=t.start_time,
                         end_time=t.end_time,
                         text=t.text,
-                        speaker_id=s.speaker_id
+                        speaker_id=s.speaker_id,
                     )
                 )
         except Exception:
-            logger.exception("Failed to process chunk %d. Skipping and continuing.", chunk.chunk_index)
+            logger.exception(
+                "Failed to process chunk %d. Skipping and continuing.", chunk.chunk_index
+            )
         finally:
             # Clear GPU memory after each heavy chunk to prevent OOM
             import gc
+
             gc.collect()
             try:
                 import torch
+
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
             except ImportError:
@@ -98,6 +91,7 @@ def run_pipeline(
         Path(chunk.chunk_filepath).unlink(missing_ok=True)
 
     return DiarizedTranscript(segments=all_segments)
+
 
 def main() -> None:
     """Main entry point to execute the pipeline using concrete implementations."""
@@ -116,9 +110,16 @@ def main() -> None:
             threshold=0.5,
             min_speech_duration_ms=250,
             min_silence_duration_ms=1000,
-            model_path=config.silero_vad_model_path
+            model_path=config.silero_vad_model_path,
         )
-        transcriber = FasterWhisperTranscriber(model_size="large-v3", compute_type="int8")
+        transcriber = FasterWhisperTranscriber(
+            model_size="large-v3",
+            compute_type="int8",
+            language=config.transcriber_language,
+            vad_filter=config.transcriber_vad_filter,
+            condition_on_previous_text=config.transcriber_condition_on_previous_text,
+            temperature=list(config.transcriber_temperature),
+        )
         diarizer = PyannoteDiarizer(auth_token=config.pyannote_auth_token)
     except Exception:
         logger.exception("Failed to initialize pipeline components")
@@ -132,12 +133,16 @@ def main() -> None:
             detector=detector,
             transcriber=transcriber,
             diarizer=diarizer,
-            file_id=config.file_id
+            file_id=config.file_id,
         )
-        logger.info("Pipeline finished successfully. Generated %d diarized segments.", len(transcript.segments))
+        logger.info(
+            "Pipeline finished successfully. Generated %d diarized segments.",
+            len(transcript.segments),
+        )
     except Exception:
         logger.exception("Pipeline execution failed")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

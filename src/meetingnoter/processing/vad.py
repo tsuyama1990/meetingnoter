@@ -6,7 +6,13 @@ from domain_models import AudioChunk, SpeechDetector, SpeechSegment
 class SileroVADDetector(SpeechDetector):
     """Concrete implementation of SpeechDetector using Silero VAD."""
 
-    def __init__(self, threshold: float = 0.5, min_speech_duration_ms: int = 250, min_silence_duration_ms: int = 1000, model_path: str | None = None) -> None:
+    def __init__(
+        self,
+        threshold: float = 0.5,
+        min_speech_duration_ms: int = 250,
+        min_silence_duration_ms: int = 1000,
+        model_path: str | None = None,
+    ) -> None:
         self.threshold = threshold
         self.min_speech_duration_ms = min_speech_duration_ms
         self.min_silence_duration_ms = min_silence_duration_ms
@@ -22,40 +28,26 @@ class SileroVADDetector(SpeechDetector):
                 msg = "Required library 'torch' is not installed."
                 raise ImportError(msg) from e
 
-            import tempfile
-            import urllib.request
             from pathlib import Path
 
-            # Default secure caching path
             if not self.model_path:
-                self.model_path = str(Path(tempfile.gettempdir()) / "silero_vad.jit")
+                msg = "A valid 'model_path' to a local Silero VAD model must be provided via configuration."
+                raise ValueError(msg)
 
             model_file = Path(self.model_path)
 
-            def _download_securely(url: str, output_path: str) -> None:
-                if url.startswith("https://"): # Address S310 Audit URL open for permitted schemes
-                    urllib.request.urlretrieve(url, output_path) # noqa: S310
-                else:
-                    msg = "Invalid download URL scheme."
-                    raise ValueError(msg)
-
             if not model_file.exists():
-                # Secure fallback download with fixed URL
-                try:
-                    url = "https://github.com/snakers4/silero-vad/raw/master/src/silero_vad/data/silero_vad.jit"
-                    _download_securely(url, self.model_path)
-                except Exception as dl_e:
-                    msg = f"Silero VAD model not found at {self.model_path} and auto-download failed: {dl_e}."
-                    raise FileNotFoundError(msg) from dl_e
+                msg = f"Silero VAD model not found at configured path {self.model_path}. Please download it securely to this path."
+                raise FileNotFoundError(msg)
 
             try:
                 # Load Silero VAD securely from local cached and verified jit file
-                model = torch.jit.load(self.model_path) # type: ignore[no-untyped-call]
+                model = torch.jit.load(self.model_path)  # type: ignore[no-untyped-call]
                 # Note: local JIT loading means we must implement the utils ourselves or supply them.
                 # For this implementation requirement, we satisfy the auditor's security constraint
                 # to stop using torch.hub.load.
                 self.model = model
-                self.utils = None # We will adapt the processing logic to handle raw model outputs if utils=None
+                self.utils = None  # We will adapt the processing logic to handle raw model outputs if utils=None
             except Exception as e:
                 msg = f"Failed to securely load Silero VAD model from local cache: {e}"
                 raise RuntimeError(msg) from e
@@ -85,7 +77,7 @@ class SileroVADDetector(SpeechDetector):
             speech_chunks.append((speech_start, float(len(probs)) * frame_duration))
 
         # Map local timestamps to global offsets
-        for (start, end) in speech_chunks:
+        for start, end in speech_chunks:
             global_start: float = chunk.start_time + start
             global_end: float = chunk.start_time + end
             global_end = min(global_end, chunk.end_time)
@@ -95,7 +87,7 @@ class SileroVADDetector(SpeechDetector):
 
         # If everything failed or it missed the gating but model executed, don't drop the chunk blindly
         if len(segments) == 0 and float(probs.mean().item()) > self.threshold:
-             segments.append(SpeechSegment(start_time=chunk.start_time, end_time=chunk.end_time))
+            segments.append(SpeechSegment(start_time=chunk.start_time, end_time=chunk.end_time))
 
         return segments
 
