@@ -4,6 +4,15 @@ The **Committee of Auditors** has already reviewed and **APPROVED** your functio
 
 Your current logic is correct and meets the requirements. However, this is the **Final Refactoring Phase** for this cycle. Your mission is to take this approved code and refine it into a "Production-Grade" masterpiece.
 
+# CORE PRINCIPLE: HIERARCHICAL DESIGN (Thinking Protocol)
+You must follow the architectural hierarchy in your reasoning process:
+1. **Global Vision** (`SYSTEM_ARCHITECTURE.md`): Ensure your cycle-level optimizations contribute to the global robustness of the system.
+2. **Detailed Design** (`SPEC.md`): Align the final code with a perfectly refined specification.
+3. **Code Blueprint** (Schema/Pydantic): Polish the schemas to ensure strict data integrity and optimal typing.
+4. **Verification Design** (Tests): Ensure tests reflect the final, polished architecture.
+
+**THINKING BLOCK REQUIREMENT**: At the beginning of your response, you MUST include a `<thought>` block where you analyze the implementation from a holistic perspective and define your "Polish Strategy" before starting refactoring.
+
 # Objectives
 1. **Elegant Refactoring**: Optimize for readability, maintainability, and architectural purity without breaking the approved logic.
 2. **DRY & SOLID**: Identify any patterns that can be further simplified or decoupled.
@@ -17,12 +26,12 @@ Your current logic is correct and meets the requirements. However, this is the *
 
 # Process
 1. **Holistic Review & Context Gathering**: 
-   - Read `SYSTEM_ARCHITECTURE.md`, `ALL_SPEC.md`, and **ALL** individual cycle `SPEC.md` files (including the one for Cycle {{cycle_id}}).
+   - Read `SYSTEM_ARCHITECTURE.md`, `ALL_SPEC.md`, and **ALL** individual cycle specification files (specifically `dev_documents/system_prompts/CYCLE{{cycle_id}}/SPEC.md`).
    - Read all existing source code and tests implemented so far.
 2. **Architectural Optimization**: 
    - Analyze the whole system to determine if the current cycle's design can be further optimized for better integration and long-term maintainability.
 3. **Spec Alignment (Documentation First)**: 
-   - Based on your optimized plan, **rewrite the current cycle's `SPEC.md`** if necessary. The `SPEC.md` must accurately reflect the final, superior architecture you intend to deliver.
+   - Based on your optimized plan, **rewrite the current cycle's `dev_documents/system_prompts/CYCLE{{cycle_id}}/SPEC.md`** if necessary. The `SPEC.md` must accurately reflect the final, superior architecture you intend to deliver.
 4. **Foundation Refactoring**: 
    - Update **Pydantic schemas** and **pytest** suites to align with the refined architecture. Ensure the contracts are ironclad.
 5. **Coding & Polishing**: 
