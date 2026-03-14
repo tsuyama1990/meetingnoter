@@ -1,7 +1,11 @@
+import contextlib
 from collections.abc import Callable
 from typing import Any
 
 import marimo
+
+with contextlib.suppress(ImportError):
+    import google.colab  # noqa: F401 # type: ignore[import-not-found, import-untyped]
 
 __generated_with = "0.20.4"
 app = marimo.App(width="medium")

@@ -1,7 +1,11 @@
+import contextlib
 import os
 
 from pydantic import Field
 from pydantic_settings import BaseSettings
+
+with contextlib.suppress(ImportError):
+    from google.colab import userdata
 
 
 class PipelineConfig(BaseSettings):
@@ -10,21 +14,21 @@ class PipelineConfig(BaseSettings):
     # Required Secrets fetched dynamically to prevent hardcoding or exposure
     google_api_key: str = Field(
         default_factory=lambda: os.environ.get("GOOGLE_API_KEY")
-        or (__import__("google.colab").userdata.get("GOOGLE_API_KEY") if __import__("importlib").util.find_spec("google.colab") else None)
+        or (userdata.get("GOOGLE_API_KEY") if userdata else None)
         or "",
         description="API key for Google Drive access",
         min_length=1,
     )
     pyannote_auth_token: str = Field(
         default_factory=lambda: os.environ.get("PYANNOTE_AUTH_TOKEN")
-        or (__import__("google.colab").userdata.get("PYANNOTE_AUTH_TOKEN") if __import__("importlib").util.find_spec("google.colab") else None)
+        or (userdata.get("PYANNOTE_AUTH_TOKEN") if userdata else None)
         or "",
         description="HuggingFace token for Pyannote Diarization",
         min_length=1,
     )
     file_id: str = Field(
         default_factory=lambda: os.environ.get("FILE_ID")
-        or (__import__("google.colab").userdata.get("FILE_ID") if __import__("importlib").util.find_spec("google.colab") else None)
+        or (userdata.get("FILE_ID") if userdata else None)
         or "",
         description="The Google Drive file ID to process",
         min_length=1,

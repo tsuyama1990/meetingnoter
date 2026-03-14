@@ -1,6 +1,10 @@
+import contextlib
 import logging
 import sys
 from pathlib import Path
+
+with contextlib.suppress(ImportError):
+    import google.colab  # noqa: F401 # type: ignore[import-not-found, import-untyped]
 
 from domain_models import (
     AudioChunk,
