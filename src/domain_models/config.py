@@ -1,11 +1,13 @@
-import contextlib
 import os
+from typing import Any
 
 from pydantic import Field
 from pydantic_settings import BaseSettings
 
-with contextlib.suppress(ImportError):
+try:
     from google.colab import userdata
+except ImportError:
+    userdata: Any = None  # type: ignore[no-redef]
 
 
 class PipelineConfig(BaseSettings):

@@ -1,10 +1,17 @@
-import contextlib
 import logging
 import sys
 from pathlib import Path
+from typing import Any
 
-with contextlib.suppress(ImportError):
-    import google.colab  # noqa: F401 # type: ignore[import-not-found, import-untyped]
+try:
+    import google.colab
+except ImportError:
+    google: Any = None  # type: ignore[no-redef]
+
+try:
+    import torch
+except ImportError:
+    torch: Any = None  # type: ignore[no-redef]
 
 from domain_models import (
     AudioChunk,
@@ -86,13 +93,8 @@ def run_pipeline(
             import gc
 
             gc.collect()
-            try:
-                import torch
-
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
-            except ImportError:
-                pass
+            if torch is not None and torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
     # Cleanup temp files
     Path(source.filepath).unlink(missing_ok=True)
