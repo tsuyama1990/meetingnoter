@@ -1,4 +1,6 @@
 import os
+import sys
+import logging
 from pathlib import Path
 
 from domain_models import (
@@ -18,6 +20,8 @@ from meetingnoter.processing.diarizer import PyannoteDiarizer
 from meetingnoter.processing.transcriber import FasterWhisperTranscriber
 from meetingnoter.processing.vad import SileroVADDetector
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 def run_pipeline(
     storage: StorageClient,
@@ -77,26 +81,39 @@ def run_pipeline(
 
 def main() -> None:
     """Main entry point to execute the pipeline using concrete implementations."""
+    file_id = os.environ.get("MEETINGNOTER_FILE_ID")
+    if len(sys.argv) > 1:
+        file_id = sys.argv[1]
+
+    if not file_id:
+        logger.error("No file_id provided. Set MEETINGNOTER_FILE_ID or pass as argument.")
+        sys.exit(1)
+
     # Initialize concrete implementations
-    storage = GoogleDriveClient(api_key=os.environ.get("GOOGLE_DRIVE_API_KEY"))
-    splitter = FFmpegChunker(chunk_length_minutes=20)
-    detector = SileroVADDetector(threshold=0.5, min_speech_duration_ms=250, min_silence_duration_ms=1000)
-    transcriber = FasterWhisperTranscriber(model_size="large-v3", compute_type="int8")
-    diarizer = PyannoteDiarizer(auth_token=os.environ.get("HF_AUTH_TOKEN"))
+    try:
+        storage = GoogleDriveClient(api_key=os.environ.get("GOOGLE_API_KEY"))
+        splitter = FFmpegChunker(chunk_length_minutes=20)
+        detector = SileroVADDetector(threshold=0.5, min_speech_duration_ms=250, min_silence_duration_ms=1000)
+        transcriber = FasterWhisperTranscriber(model_size="large-v3", compute_type="int8")
+        diarizer = PyannoteDiarizer(auth_token=os.environ.get("PYANNOTE_AUTH_TOKEN"))
+    except ValueError:
+        logger.exception("Failed to initialize pipeline components")
+        sys.exit(1)
 
     # Execute pipeline
     try:
-        run_pipeline(
+        transcript = run_pipeline(
             storage=storage,
             splitter=splitter,
             detector=detector,
             transcriber=transcriber,
             diarizer=diarizer,
-            file_id="sample_interview"
+            file_id=file_id
         )
-        # Output result
+        logger.info("Pipeline finished successfully. Generated %d diarized segments.", len(transcript.segments))
     except Exception:
-        pass
+        logger.exception("Pipeline execution failed")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()

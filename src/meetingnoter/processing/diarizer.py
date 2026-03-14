@@ -7,7 +7,10 @@ class PyannoteDiarizer(Diarizer):
     """Concrete implementation of Diarizer using pyannote.audio."""
 
     def __init__(self, auth_token: str | None = None) -> None:
-        self.auth_token = auth_token or os.environ.get("PYANNOTE_AUTH_TOKEN", "mock_token_for_now")
+        self.auth_token = auth_token or os.environ.get("PYANNOTE_AUTH_TOKEN")
+        if not self.auth_token:
+            msg = "PYANNOTE_AUTH_TOKEN must be provided via argument or environment variable."
+            raise ValueError(msg)
         self.pipeline = None
 
     def _load_model(self) -> None:

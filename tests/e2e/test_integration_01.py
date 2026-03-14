@@ -4,8 +4,6 @@ from domain_models import (
     AudioChunk,
     AudioSource,
     AudioSplitter,
-    DiarizedSegment,
-    DiarizedTranscript,
     Diarizer,
     SpeakerLabel,
     SpeechDetector,
@@ -47,56 +45,54 @@ class DummyDiarizer:
         return [SpeakerLabel(start_time=chunk.start_time, end_time=chunk.start_time + 10.0, speaker_id="SPEAKER_00")]
 
 
-def test_pipeline_integration_failure() -> None:
-    # Test handling of download failures
-    storage: StorageClient = DummyStorageClient()
 
-    # Overwrite the mock to simulate failure
-    def failing_download(file_id: str) -> AudioSource:
+class FailingDummyStorageClient:
+    """A clean test double that fails on download."""
+    def download(self, file_id: str) -> AudioSource:
         msg = "Network Error"
         raise RuntimeError(msg)
 
-    storage.download = failing_download # type: ignore[method-assign]
+
+def test_pipeline_integration_failure() -> None:
+    # Test handling of download failures using proper test double instead of monkey-patching
+    storage: StorageClient = FailingDummyStorageClient()
 
     import pytest
     with pytest.raises(RuntimeError, match="Network Error"):
         storage.download("test_id")
 
+    # Ensure run_pipeline raises the error to the caller
+    from main import run_pipeline
+    with pytest.raises(RuntimeError, match="Network Error"):
+        run_pipeline(
+            storage=storage,
+            splitter=DummyAudioSplitter(),
+            detector=DummySpeechDetector(),
+            transcriber=DummyTranscriber(),
+            diarizer=DummyDiarizer(),
+            file_id="test_id"
+        )
+
+
 def test_pipeline_integration() -> None:
-    # 1. Download
+    # Use the main.py run_pipeline orchestration logic to actually test the integration SUT
+    from main import run_pipeline
+
     storage: StorageClient = DummyStorageClient()
-    source = storage.download("test_id")
-    assert isinstance(source, AudioSource)
-
-    # 2. Split
     splitter: AudioSplitter = DummyAudioSplitter()
-    chunks = splitter.split(source)
-    assert len(chunks) == 2
-
-    # 3. Detect, Transcribe, Diarize
     detector: SpeechDetector = DummySpeechDetector()
     transcriber: Transcriber = DummyTranscriber()
     diarizer: Diarizer = DummyDiarizer()
 
-    all_segments = []
+    transcript = run_pipeline(
+        storage=storage,
+        splitter=splitter,
+        detector=detector,
+        transcriber=transcriber,
+        diarizer=diarizer,
+        file_id="test_id"
+    )
 
-    for chunk in chunks:
-        speech_segments = detector.detect_speech(chunk)
-        transcriptions = transcriber.transcribe(chunk, speech_segments)
-        speaker_labels = diarizer.diarize(chunk)
-
-        # Basic aggregation (simplified for cycle 1 test)
-        for t, s in zip(transcriptions, speaker_labels, strict=False):
-            all_segments.append(
-                DiarizedSegment(
-                    start_time=t.start_time,
-                    end_time=t.end_time,
-                    text=t.text,
-                    speaker_id=s.speaker_id,
-                )
-            )
-
-    transcript = DiarizedTranscript(segments=all_segments)
     assert len(transcript.segments) == 2
     assert transcript.segments[0].speaker_id == "SPEAKER_00"
     assert transcript.segments[0].text == "Text 0.0"

@@ -8,8 +8,10 @@ class GoogleDriveClient(StorageClient):
     """Concrete implementation for downloading from Google Drive."""
 
     def __init__(self, api_key: str | None = None) -> None:
-        self.api_key = api_key or os.environ.get("GOOGLE_API_KEY", "mock_key_for_now")
-        # In a real cycle 02 scenario, we would initialize googleapiclient.discovery.build
+        self.api_key = api_key or os.environ.get("GOOGLE_API_KEY")
+        if not self.api_key:
+            msg = "GOOGLE_API_KEY must be provided via argument or environment variable."
+            raise ValueError(msg)
 
     def download(self, file_id: str) -> AudioSource:
         # Instead of importing heavy google apis in this cycle, we use subprocess or basic mocking

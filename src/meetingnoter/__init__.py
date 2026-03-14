@@ -1,3 +1,1 @@
-import os
-
-__all__ = ["os"]
+# Empty init file to define package

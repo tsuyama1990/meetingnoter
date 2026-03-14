@@ -16,6 +16,12 @@ class FFmpegChunker(AudioSplitter):
         # Calculate number of chunks
         num_chunks = math.ceil(source.duration_seconds / self.chunk_length_seconds)
 
+        import shutil
+        ffmpeg_path = shutil.which("ffmpeg")
+        if not ffmpeg_path:
+            msg = "FFmpeg is not installed or not found in system PATH."
+            raise RuntimeError(msg)
+
         try:
             if num_chunks <= 1:
                 # If the audio is shorter than the chunk length, return as one chunk.
@@ -24,7 +30,7 @@ class FFmpegChunker(AudioSplitter):
                     pass
                 subprocess.run(
                     [
-                        "ffmpeg", "-y", "-i", source.filepath,
+                        ffmpeg_path, "-y", "-i", source.filepath,
                         "-ac", "1", "-ar", "16000",
                         chunk_file.name
                     ],
@@ -34,7 +40,8 @@ class FFmpegChunker(AudioSplitter):
                 )
                 from pathlib import Path
                 if Path(chunk_file.name).stat().st_size == 0:
-                    raise RuntimeError("FFmpeg produced an empty file")
+                    msg = "FFmpeg produced an empty file"
+                    raise RuntimeError(msg)
 
                 return [AudioChunk(
                     chunk_filepath=chunk_file.name,
@@ -56,7 +63,7 @@ class FFmpegChunker(AudioSplitter):
                 # Execute real ffmpeg split
                 subprocess.run(
                     [
-                        "ffmpeg", "-y", "-i", source.filepath,
+                        ffmpeg_path, "-y", "-i", source.filepath,
                         "-ss", str(start_time),
                         "-t", str(duration),
                         "-ac", "1", "-ar", "16000",
@@ -77,10 +84,13 @@ class FFmpegChunker(AudioSplitter):
                         )
                     )
                 else:
-                    raise RuntimeError(f"FFmpeg chunk {i} is empty.")
+                    msg = f"FFmpeg chunk {i} is empty."
+                    raise RuntimeError(msg)
 
             return chunks
         except FileNotFoundError as e:
-            raise RuntimeError("FFmpeg is not installed or not found in system PATH.") from e
+            msg = "FFmpeg is not installed or not found in system PATH."
+            raise RuntimeError(msg) from e
         except subprocess.CalledProcessError as e:
-            raise RuntimeError(f"FFmpeg chunking failed: {e}") from e
+            msg = f"FFmpeg chunking failed: {e}"
+            raise RuntimeError(msg) from e

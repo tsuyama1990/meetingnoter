@@ -19,12 +19,13 @@ class SileroVADDetector(SpeechDetector):
                 msg = "Required library 'torch' is not installed."
                 raise ImportError(msg) from e
             try:
-                # Load silero VAD
+                # Load silero VAD securely
                 model, utils = torch.hub.load( # type: ignore[no-untyped-call]
                     repo_or_dir='snakers4/silero-vad',
                     model='silero_vad',
                     force_reload=False,
-                    onnx=False
+                    onnx=False,
+                    trust_repo=True # Security: Explicitly acknowledging trust for this specific official repo
                 )
                 self.model = model
                 self.utils = utils

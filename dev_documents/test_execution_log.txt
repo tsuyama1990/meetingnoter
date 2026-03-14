@@ -12,15 +12,20 @@ tests/unit/test_domain_models.py ...............                         [100%]
 ================================ tests coverage ================================
 _______________ coverage: platform linux, python 3.12.13-final-0 _______________
 
-Name                                 Stmts   Miss  Cover   Missing
-------------------------------------------------------------------
-src/domain_models/__init__.py            4      0   100%
-src/domain_models/audio.py              27      0   100%
-src/domain_models/interfaces.py         13      0   100%
-src/domain_models/transcription.py      38      0   100%
-src/meetingnoter/__init__.py             2      2     0%   1-3
-------------------------------------------------------------------
-TOTAL                                   84      2    98%
-============================== 17 passed in 0.61s ==============================
+Name                                         Stmts   Miss  Cover   Missing
+--------------------------------------------------------------------------
+src/domain_models/__init__.py                    4      0   100%
+src/domain_models/audio.py                      27      0   100%
+src/domain_models/interfaces.py                 13      0   100%
+src/domain_models/transcription.py              38      0   100%
+src/meetingnoter/__init__.py                     0      0   100%
+src/meetingnoter/ingestion/drive_client.py      33     27    18%   11-14, 23-49
+src/meetingnoter/processing/chunker.py          44     37    16%   12, 17-96
+src/meetingnoter/processing/diarizer.py         46     40    13%   10-14, 17-36, 40-76
+src/meetingnoter/processing/transcriber.py      41     36    12%   9-11, 14-27, 31-72
+src/meetingnoter/processing/vad.py              41     36    12%   8-12, 15-34, 38-70
+--------------------------------------------------------------------------
+TOTAL                                          287    176    39%
+============================== 17 passed in 4.67s ==============================
 /app/.venv/lib/python3.12/site-packages/coverage/inorout.py:561: CoverageWarning: Module dev_src was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.13.4/messages.html#warning-module-not-imported
   self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")
