@@ -113,3 +113,39 @@ def test_pipeline_integration() -> None:
     assert len(transcript.segments) == 2
     assert transcript.segments[0].speaker_id == "SPEAKER_00"
     assert transcript.segments[0].text == "Text 0.0"
+
+def test_ffmpeg_chunker_integration() -> None:
+    import shutil
+    if not shutil.which("ffmpeg"):
+        import pytest
+        pytest.skip("ffmpeg not installed")
+
+    import wave
+    from pathlib import Path
+
+    from meetingnoter.processing.chunker import FFmpegChunker
+
+    # Create a valid minimal wave file
+    with (
+        tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf,
+        wave.open(tf.name, "wb") as w,
+    ):
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(16000)
+        # Create 1 second of silence
+        w.writeframes(b"\x00" * 16000 * 2)
+
+    try:
+        source = AudioSource(filepath=tf.name, duration_seconds=1.0)
+        chunker = FFmpegChunker(chunk_length_minutes=1) # 1 minute chunks
+
+        chunks = chunker.split(source)
+
+        assert len(chunks) == 1
+        assert chunks[0].start_time == 0.0
+        assert chunks[0].end_time == 1.0
+        assert Path(chunks[0].chunk_filepath).exists()
+        assert Path(chunks[0].chunk_filepath).stat().st_size > 0
+    finally:
+        Path(tf.name).unlink(missing_ok=True)

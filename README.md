@@ -9,6 +9,7 @@ It provides robust, highly accurate Speech-to-Text transcription and speaker rec
 - **Secure Architecture Framework**: Defines strict abstractions (`StorageClient`, `AudioSplitter`, `SpeechDetector`, `Transcriber`, `Diarizer`) to plug in models and clients without mixing concerns.
 - **Secure Data Ingestion**: Provides an implementation of the `GoogleDriveClient` that automatically retrieves credentials via dependency injection and robustly downloads audio data into temporary scratch spaces without persisting them insecurely.
 - **End-to-End Orchestration**: A robust `run_pipeline` function strictly handles chunking, voice activity detection, transcription, diarization, and aggregation while enforcing GPU memory garbage collection to prevent Out-Of-Memory (OOM) crashes on constrained environments like free Google Colab tiers.
+- **Audio Chunking without Re-encoding**: Securely and predictably slices large audio files into smaller segments using FFmpeg, avoiding OOM errors natively while perfectly preserving raw audio quality without unnecessary re-encoding operations.
 
 ## Installation
 
@@ -20,9 +21,9 @@ uv sync
 
 ## Usage
 
-(Note: This pipeline is currently undergoing early development. Currently implemented are the core schemas, abstractions, secure ingestion, and the main orchestrator.)
+(Note: This pipeline is currently undergoing early development. Currently implemented are the core schemas, abstractions, secure ingestion, audio chunking, and the main orchestrator.)
 
-To perform interactive testing of the data schemas and the data ingestion logic, run the User Acceptance Testing tutorial using Marimo:
+To perform interactive testing of the data schemas, data ingestion logic, and audio preprocessing, run the User Acceptance Testing tutorial using Marimo:
 
 ```bash
 PYTHONPATH=src uv run marimo edit tests/uat/UAT_AND_TUTORIAL.py

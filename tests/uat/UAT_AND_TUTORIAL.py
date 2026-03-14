@@ -173,3 +173,41 @@ def cell_tests_c02(mo: object) -> tuple[object, object]:
 
 if __name__ == "__main__":
     app.run()
+
+@app.cell
+def cell_markdown_c03(mo: object) -> object:
+    return mo.md(  # type: ignore[attr-defined]
+        r"""
+        # CYCLE03 User Acceptance Testing (UAT)
+
+        This section validates the Audio Preprocessing (Chunking) component. It tests the behavior when attempting to create malformed audio chunks, ensuring that precise timestamp offset validation prevents state errors before heavy compute begins.
+        """
+    )
+
+
+@app.cell
+def cell_tests_c03(mo: object) -> tuple[object, object]:
+    def test_c03_error_handling() -> object:
+        from pydantic import ValidationError
+
+        from domain_models import AudioChunk
+
+        try:
+            # Inject malformed data: start_time >= end_time
+            _ = AudioChunk(
+                chunk_filepath="malformed_chunk.wav",
+                start_time=120.0,
+                end_time=60.0, # Error: end time is before start time
+                chunk_index=1
+            )
+            return mo.md("**Cycle 03 Error Handling Failed:** Exception was not triggered!")  # type: ignore[attr-defined]
+        except ValidationError as e:
+            return mo.md(  # type: ignore[attr-defined]
+                f"**Cycle 03 Error Handling Passed!** Caught validation error gracefully:\n```\n{e}\n```"
+            )
+
+    c03_tests_output = mo.vstack([test_c03_error_handling()])  # type: ignore[attr-defined]
+    return (
+        test_c03_error_handling,
+        c03_tests_output,
+    )

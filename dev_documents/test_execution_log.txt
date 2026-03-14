@@ -2,10 +2,12 @@
 platform linux -- Python 3.12.13, pytest-9.0.2, pluggy-1.6.0
 rootdir: /app
 configfile: pyproject.toml
+testpaths: tests
 plugins: cov-7.0.0, anyio-4.12.1
-collected 21 items
+collected 28 items
 
-tests/e2e/test_integration_01.py ..                                      [  9%]
+tests/e2e/test_integration_01.py ..s                                     [ 10%]
+tests/unit/test_chunker.py ......                                        [ 32%]
 tests/unit/test_domain_models.py ...................                     [100%]
 
 ================================ tests coverage ================================
@@ -22,4 +24,4 @@ src/domain_models/transcription.py              38      0   100%
 src/meetingnoter/ingestion/drive_client.py      46      3    93%   51, 57, 63
 --------------------------------------------------------------------------
 TOTAL                                          215     42    80%
-============================== 21 passed in 9.26s ==============================
+======================== 27 passed, 1 skipped in 5.56s =========================
