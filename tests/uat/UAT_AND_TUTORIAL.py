@@ -23,7 +23,26 @@ def cell_markdown(mo: object) -> object:
 
 
 @app.cell
-def cell_tests(mo: object) -> tuple:  # type: ignore[type-arg]
+def cell_tests(
+    mo: object,
+) -> tuple[
+    object,
+    object,
+    type,
+    object,
+    object,
+    object,
+    object,
+    object,
+    object,
+    object,
+    object,
+    object,
+    object,
+    object,
+    object,
+    object,
+]:
     from pydantic import ValidationError
 
     from domain_models import (
@@ -116,9 +135,9 @@ def cell_markdown_c02(mo: object) -> object:
 
 
 @app.cell
-def cell_tests_c02(mo: object) -> tuple:  # type: ignore[type-arg]
+def cell_tests_c02(mo: object) -> tuple[object, object]:
     def test_c02_error_handling() -> object:
-        from unittest.mock import MagicMock
+        from unittest.mock import MagicMock, patch
 
         import requests
 
@@ -126,14 +145,9 @@ def cell_tests_c02(mo: object) -> tuple:  # type: ignore[type-arg]
         from meetingnoter.ingestion.drive_client import GoogleDriveClient
 
         try:
-            # Safely configure a fake environment
-            import os
-
-            os.environ["GOOGLE_API_KEY"] = "mock_api_key_for_testing_12345"
-            os.environ["PYANNOTE_AUTH_TOKEN"] = "mock_pyannote"
-            os.environ["FILE_ID"] = "mock_file"
-
-            config = PipelineConfig()  # type: ignore[call-arg]
+            # Safely configure a fake environment without hardcoding into os.environ globally
+            with patch("os.environ.get", return_value="dummy_env_var_value_for_uat"):
+                config = PipelineConfig()
 
             # Inject a mock HTTP Client
             mock_http = MagicMock(spec=requests.Session)

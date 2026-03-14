@@ -96,28 +96,31 @@ def test_diarized_transcript_valid() -> None:
     assert len(transcript.segments) == 1
 
 
-def test_mock_storage_client_implements_protocol() -> None:
-    client: StorageClient = MagicMock(spec=StorageClient)
-    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf:
-        mock_source = AudioSource(filepath=tf.name, duration_seconds=60.0)
+class DummyStorageClientForMock(StorageClient):
+    def download(self, file_id: str) -> AudioSource:
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf:
+            return AudioSource(filepath=tf.name, duration_seconds=60.0)
 
-    # We must explicitly set the type of the mock return to please mypy
-    client.download = MagicMock(return_value=mock_source)  # type: ignore[method-assign]
 
+class DummyAudioSplitterForMock(AudioSplitter):
+    def split(self, source: AudioSource) -> list[AudioChunk]:
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf_chunk:
+            return [
+                AudioChunk(
+                    chunk_filepath=tf_chunk.name, start_time=0.0, end_time=60.0, chunk_index=0
+                )
+            ]
+
+
+def test_dummy_storage_client_implements_protocol() -> None:
+    client = DummyStorageClientForMock()
     source = client.download("test_id")
     assert isinstance(source, AudioSource)
     assert source.duration_seconds == 60.0
 
 
-def test_mock_audio_splitter_implements_protocol() -> None:
-    splitter: AudioSplitter = MagicMock(spec=AudioSplitter)
-    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf_chunk:
-        mock_chunk = AudioChunk(
-            chunk_filepath=tf_chunk.name, start_time=0.0, end_time=60.0, chunk_index=0
-        )
-
-    splitter.split = MagicMock(return_value=[mock_chunk])  # type: ignore[method-assign]
-
+def test_dummy_audio_splitter_implements_protocol() -> None:
+    splitter = DummyAudioSplitterForMock()
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf_source:
         chunks = splitter.split(AudioSource(filepath=tf_source.name, duration_seconds=60.0))
 
@@ -130,15 +133,16 @@ def test_mock_audio_splitter_implements_protocol() -> None:
 @patch("os.fdopen")
 @patch("wave.open")
 def test_google_drive_client_success(
-    mock_wave_open: MagicMock, mock_fdopen: MagicMock, mock_mkstemp: MagicMock
+    mock_wave_open: MagicMock,
+    mock_fdopen: MagicMock,
+    mock_mkstemp: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Set up safe test configuration instead of hardcoding API keys
-    import os
-
-    os.environ["GOOGLE_API_KEY"] = "dummy_key_for_testing"
-    os.environ["PYANNOTE_AUTH_TOKEN"] = "dummy_token"
-    os.environ["FILE_ID"] = "dummy_file"
-    config = PipelineConfig()  # type: ignore[call-arg]
+    monkeypatch.setenv("GOOGLE_API_KEY", "env_dummy_key_123")
+    monkeypatch.setenv("PYANNOTE_AUTH_TOKEN", "env_dummy_token_123")
+    monkeypatch.setenv("FILE_ID", "env_dummy_file_123")
+    config = PipelineConfig()
 
     mock_http = MagicMock(spec=requests.Session)
     mock_response = MagicMock()
@@ -158,13 +162,11 @@ def test_google_drive_client_success(
     assert source.duration_seconds == 1.0
 
 
-def test_google_drive_client_failure() -> None:
-    import os
-
-    os.environ["GOOGLE_API_KEY"] = "dummy_key_for_testing"
-    os.environ["PYANNOTE_AUTH_TOKEN"] = "dummy_token"
-    os.environ["FILE_ID"] = "dummy_file"
-    config = PipelineConfig()  # type: ignore[call-arg]
+def test_google_drive_client_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GOOGLE_API_KEY", "env_dummy_key_123")
+    monkeypatch.setenv("PYANNOTE_AUTH_TOKEN", "env_dummy_token_123")
+    monkeypatch.setenv("FILE_ID", "env_dummy_file_123")
+    config = PipelineConfig()
 
     mock_http = MagicMock(spec=requests.Session)
     mock_http.get.side_effect = requests.exceptions.RequestException("Network error")
@@ -174,13 +176,11 @@ def test_google_drive_client_failure() -> None:
         client.download("test_id")
 
 
-def test_google_drive_client_http_error() -> None:
-    import os
-
-    os.environ["GOOGLE_API_KEY"] = "dummy_key_for_testing"
-    os.environ["PYANNOTE_AUTH_TOKEN"] = "dummy_token"
-    os.environ["FILE_ID"] = "dummy_file"
-    config = PipelineConfig()  # type: ignore[call-arg]
+def test_google_drive_client_http_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GOOGLE_API_KEY", "env_dummy_key_123")
+    monkeypatch.setenv("PYANNOTE_AUTH_TOKEN", "env_dummy_token_123")
+    monkeypatch.setenv("FILE_ID", "env_dummy_file_123")
+    config = PipelineConfig()
 
     mock_http = MagicMock(spec=requests.Session)
     mock_http.get.side_effect = requests.exceptions.HTTPError("403 Forbidden")
@@ -190,13 +190,11 @@ def test_google_drive_client_http_error() -> None:
         client.download("test_id")
 
 
-def test_google_drive_client_unexpected_error() -> None:
-    import os
-
-    os.environ["GOOGLE_API_KEY"] = "dummy_key_for_testing"
-    os.environ["PYANNOTE_AUTH_TOKEN"] = "dummy_token"
-    os.environ["FILE_ID"] = "dummy_file"
-    config = PipelineConfig()  # type: ignore[call-arg]
+def test_google_drive_client_unexpected_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GOOGLE_API_KEY", "env_dummy_key_123")
+    monkeypatch.setenv("PYANNOTE_AUTH_TOKEN", "env_dummy_token_123")
+    monkeypatch.setenv("FILE_ID", "env_dummy_file_123")
+    config = PipelineConfig()
 
     mock_http = MagicMock(spec=requests.Session)
     mock_http.get.side_effect = Exception("Unexpected error")

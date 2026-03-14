@@ -32,7 +32,7 @@ class GoogleDriveClient(StorageClient):
             url = f"https://www.googleapis.com/drive/v3/files/{file_id}?alt=media"
             headers = {"Authorization": f"Bearer {self.config.google_api_key}"}
 
-            response = self.http_client.get(url, headers=headers, timeout=30, verify=True)
+            response = self.http_client.get(url, headers=headers, timeout=30, verify=True, stream=True)
             response.raise_for_status()
 
             fd, temp_file_path = tempfile.mkstemp(suffix=".wav")

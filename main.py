@@ -25,8 +25,8 @@ logger = logging.getLogger(__name__)
 
 
 def get_config() -> PipelineConfig:
-    # Resolves directly from ENV due to pydantic BaseSettings
-    return PipelineConfig()  # type: ignore[call-arg]
+    # Resolves directly from ENV or google.colab.userdata via default_factory
+    return PipelineConfig()
 
 
 def run_pipeline(
@@ -115,9 +115,9 @@ def main() -> None:
         transcriber = FasterWhisperTranscriber(
             model_size="large-v3",
             compute_type="int8",
-            language=config.transcriber_language,
-            vad_filter=config.transcriber_vad_filter,
-            condition_on_previous_text=config.transcriber_condition_on_previous_text,
+            language=str(config.transcriber_language),
+            vad_filter=bool(config.transcriber_vad_filter),
+            condition_on_previous_text=bool(config.transcriber_condition_on_previous_text),
             temperature=list(config.transcriber_temperature),
         )
         diarizer = PyannoteDiarizer(auth_token=config.pyannote_auth_token)
