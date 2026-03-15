@@ -27,4 +27,6 @@ src/meetingnoter/processing/transcriber.py      66      0   100%
 src/meetingnoter/processing/vad.py             184     58    68%   14-16, 49-50, 68-69, 86-87, 102, 108-109, 125-132, 142-148, 172-173, 189, 196-197, 207-216, 223, 227-229, 232-233, 236-237, 240-241, 244-245, 265-266, 269-273, 279, 283-284
 --------------------------------------------------------------------------
 TOTAL                                          494     81    84%
-============================== 47 passed in 8.93s ==============================
+============================== 47 passed in 6.86s ==============================
+/app/.venv/lib/python3.12/site-packages/coverage/inorout.py:561: CoverageWarning: Module meetingnoter.processing.diarizer was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.13.4/messages.html#warning-module-not-imported
+  self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")
