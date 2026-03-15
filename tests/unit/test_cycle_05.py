@@ -230,15 +230,17 @@ def test_transcriber_import_error() -> None:
         importlib.reload(meetingnoter.processing.transcriber)
 
 
-@patch("pathlib.Path.is_file", return_value=True)
+@patch("meetingnoter.processing.transcriber.torch.cuda.empty_cache")
+@patch("meetingnoter.processing.transcriber.torch.cuda.is_available", return_value=True)
 @patch("meetingnoter.processing.transcriber.WhisperModel")
-@patch("torch.cuda.is_available", return_value=True)
-@patch("torch.cuda.empty_cache")
+@patch("pathlib.Path.is_file", return_value=True)
+@patch("pathlib.Path.is_relative_to", return_value=True)
 def test_transcriber_garbage_collection(
-    mock_empty_cache: MagicMock,
-    mock_cuda: MagicMock,
-    mock_whisper_model: MagicMock,
+    mock_is_relative_to: MagicMock,
     mock_is_file: MagicMock,
+    mock_whisper_model: MagicMock,
+    mock_is_available: MagicMock,
+    mock_empty_cache: MagicMock,
     tmp_path: Path,
 ) -> None:
 
@@ -246,23 +248,22 @@ def test_transcriber_garbage_collection(
     mock_whisper_model.return_value = mock_model_instance
     mock_model_instance.transcribe.return_value = ([], None)
 
-    with patch("pathlib.Path.is_relative_to", return_value=True):
-        with patch("domain_models.config._get_secret", return_value="dummy"):
-            config = PipelineConfig()
-            transcriber = FasterWhisperTranscriber(config)
+    with patch("domain_models.config._get_secret", return_value="dummy"):
+        config = PipelineConfig()
+        transcriber = FasterWhisperTranscriber(config)
 
-        test_file = tmp_path / "test.wav"
-        test_file.touch()
-        chunk = AudioChunk(
-            chunk_filepath=str(test_file),
-            start_time=0.0,
-            end_time=10.0,
-            chunk_index=0,
-        )
+    test_file = tmp_path / "test.wav"
+    test_file.touch()
+    chunk = AudioChunk(
+        chunk_filepath=str(test_file),
+        start_time=0.0,
+        end_time=10.0,
+        chunk_index=0,
+    )
 
-        transcriber.transcribe(chunk, [])
+    transcriber.transcribe(chunk, [])
 
-        mock_empty_cache.assert_called_once()
+    mock_empty_cache.assert_called_once()
 
 
 @patch("pathlib.Path.is_file", return_value=True)
