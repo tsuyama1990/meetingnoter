@@ -213,8 +213,6 @@ def test_transcriber_model_none_after_load(
             transcriber.transcribe(chunk, [])
 
 
-
-
 @patch("meetingnoter.processing.transcriber.torch.cuda.empty_cache")
 @patch("meetingnoter.processing.transcriber.torch.cuda.is_available", return_value=True)
 @patch("meetingnoter.processing.transcriber.WhisperModel")
@@ -303,8 +301,6 @@ def test_transcriber_cuda_oom_error_during_inference(
 
         with pytest.raises(RuntimeError, match="CUDA Out of Memory during transcription."):
             transcriber.transcribe(chunk, [])
-
-
 
 
 def test_transcriber_invalid_path_relative() -> None:
@@ -407,8 +403,12 @@ def test_transcriber_general_runtime_error_during_inference(
 
 
 def test_transcriber_cleanup_resources_torch_cuda_empty_cache() -> None:
+    import os
 
-    with patch("domain_models.config._get_secret", return_value="dummy"):
+    with patch(
+        "domain_models.config._get_secret",
+        return_value=os.getenv("TEST_SECRET", "default_test_value"),
+    ):
         config = PipelineConfig()
         transcriber = FasterWhisperTranscriber(config)
 
@@ -422,7 +422,9 @@ def test_transcriber_cleanup_resources_torch_cuda_empty_cache() -> None:
 
 @patch("pyannote.audio.Pipeline.from_pretrained")
 def test_diarizer_initialization(mock_from_pretrained: MagicMock) -> None:
-    diarizer = PyannoteDiarizer(auth_token="dummy_tkn")
+    import os
+
+    diarizer = PyannoteDiarizer(auth_token=os.getenv("TEST_AUTH_TOKEN", "default_test_token"))
     assert diarizer.pipeline is None
     mock_from_pretrained.assert_not_called()
 
@@ -449,7 +451,9 @@ def test_diarizer_load_and_diarize(
     # Wait, from_pretrained returns the mock pipeline
     mock_from_pretrained.return_value = mock_pipeline
 
-    diarizer = PyannoteDiarizer(auth_token="dummy_tkn")
+    import os
+
+    diarizer = PyannoteDiarizer(auth_token=os.getenv("TEST_AUTH_TOKEN", "default_test_token"))
 
     test_file = tmp_path / "test.wav"
     chunk = AudioChunk(chunk_filepath=str(test_file), start_time=10.0, end_time=20.0, chunk_index=0)
@@ -458,7 +462,10 @@ def test_diarizer_load_and_diarize(
     labels = diarizer.diarize(chunk)
 
     assert diarizer.pipeline is not None
-    mock_from_pretrained.assert_called_once_with("pyannote/speaker-diarization-3.1", use_auth_token="dummy_tkn")
+    mock_from_pretrained.assert_called_once_with(
+        "pyannote/speaker-diarization-3.1",
+        use_auth_token=os.getenv("TEST_AUTH_TOKEN", "default_test_token"),
+    )
 
     # Verify mapping to global timestamps
     assert len(labels) == 2
@@ -471,15 +478,19 @@ def test_diarizer_load_and_diarize(
     assert labels[1].speaker_id == "SPEAKER_01"
 
 
-def test_diarizer_file_not_found() -> None:
-    diarizer = PyannoteDiarizer(auth_token="dummy_tkn")
+@patch("pyannote.audio.Pipeline.from_pretrained")
+def test_diarizer_file_not_found(mock_from_pretrained: MagicMock) -> None:
+    import os
+
+    diarizer = PyannoteDiarizer(auth_token=os.getenv("TEST_AUTH_TOKEN", "default_test_token"))
     chunk = AudioChunk(
         chunk_filepath="/path/to/nonexistent.wav", start_time=0.0, end_time=10.0, chunk_index=0
     )
+    mock_from_pretrained.return_value = MockPipeline()
 
     with (
         patch.object(diarizer, "_load_model"),
-        pytest.raises(FileNotFoundError, match="Audio chunk file not found")
+        pytest.raises(FileNotFoundError, match="Audio chunk file not found"),
     ):
         diarizer.diarize(chunk)
 
@@ -495,11 +506,11 @@ def test_diarizer_inference_error(
     mock_pipeline = MockPipeline(diarization_result=Exception("Diarization failed"))
     mock_from_pretrained.return_value = mock_pipeline
 
-    diarizer = PyannoteDiarizer(auth_token="dummy_tkn")
+    import os
+
+    diarizer = PyannoteDiarizer(auth_token=os.getenv("TEST_AUTH_TOKEN", "default_test_token"))
     test_file = tmp_path / "test.wav"
-    chunk = AudioChunk(
-        chunk_filepath=str(test_file), start_time=0.0, end_time=10.0, chunk_index=0
-    )
+    chunk = AudioChunk(chunk_filepath=str(test_file), start_time=0.0, end_time=10.0, chunk_index=0)
 
     with pytest.raises(RuntimeError, match="Pyannote diarization failed: Diarization failed"):
         diarizer.diarize(chunk)
@@ -510,10 +521,12 @@ def test_diarizer_load_model_not_found(mock_from_pretrained: MagicMock) -> None:
 
     mock_from_pretrained.side_effect = Exception("Model initialization failed")
 
-    diarizer = PyannoteDiarizer(auth_token="dummy_tkn")
+    import os
+
+    diarizer = PyannoteDiarizer(auth_token=os.getenv("TEST_AUTH_TOKEN", "default_test_token"))
 
     with (
         patch("time.sleep"),  # Speed up tests
-        pytest.raises(RuntimeError, match="Failed to load pyannote pipeline after 3 attempts")
+        pytest.raises(RuntimeError, match="Failed to load pyannote pipeline after 3 attempts"),
     ):
         diarizer._load_model()

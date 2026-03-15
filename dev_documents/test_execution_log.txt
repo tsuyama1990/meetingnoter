@@ -4,12 +4,12 @@ rootdir: /app
 configfile: pyproject.toml
 testpaths: tests
 plugins: cov-7.0.0, anyio-4.12.1
-collected 58 items
+collected 54 items
 
-tests/e2e/test_integration_01.py ..s.                                    [  6%]
-tests/unit/test_chunker.py ......                                        [ 17%]
-tests/unit/test_cycle_05.py .......................                      [ 56%]
-tests/unit/test_domain_models.py ...................                     [ 89%]
+tests/e2e/test_integration_01.py ....                                    [  7%]
+tests/unit/test_chunker.py ......                                        [ 18%]
+tests/unit/test_cycle_05.py ...................                          [ 53%]
+tests/unit/test_domain_models.py ...................                     [ 88%]
 tests/unit/test_vad.py ......                                            [100%]
 
 =============================== warnings summary ===============================
@@ -140,9 +140,9 @@ src/domain_models/interfaces.py                 13      0   100%
 src/domain_models/transcription.py              38      0   100%
 src/meetingnoter/ingestion/drive_client.py      46      3    93%   53, 59, 65
 src/meetingnoter/processing/chunker.py          58      5    91%   25-26, 41, 75-76
-src/meetingnoter/processing/diarizer.py         49      0   100%
-src/meetingnoter/processing/transcriber.py      66      0   100%
+src/meetingnoter/processing/diarizer.py         49      5    90%   16-18, 78-79
+src/meetingnoter/processing/transcriber.py      66      3    95%   16-18
 src/meetingnoter/processing/vad.py             184     58    68%   14-16, 49-50, 68-69, 86-87, 102, 108-109, 125-132, 142-148, 172-173, 189, 196-197, 207-216, 223, 227-229, 232-233, 236-237, 240-241, 244-245, 265-266, 269-273, 279, 283-284
 --------------------------------------------------------------------------
-TOTAL                                          543     81    85%
-================== 57 passed, 1 skipped, 1 warning in 18.79s ===================
+TOTAL                                          543     89    84%
+======================== 54 passed, 1 warning in 18.87s ========================

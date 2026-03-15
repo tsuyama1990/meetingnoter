@@ -234,10 +234,13 @@ def cell_tests_c05_3(mo: Any) -> tuple[Any, ...]:
         from unittest.mock import patch
 
         from domain_models import AudioChunk, PipelineConfig, SpeechSegment
-        MockModule = namedtuple('MockModule', ['WhisperModel'])
+
+        MockModule = namedtuple("MockModule", ["WhisperModel"])
+
         class MockModel:
             def __init__(self, *args: Any, **kwargs: Any) -> None:
                 pass
+
             def transcribe(self, *args: Any, **kwargs: Any) -> tuple[list[Any], None]:
                 return ([], None)
 
@@ -275,8 +278,12 @@ def cell_tests_c05_3(mo: Any) -> tuple[Any, ...]:
 
             speech_segments_01 = [SpeechSegment(start_time=10.0, end_time=15.0)]
 
+            import os
 
-            with patch("domain_models.config._get_secret", return_value="test"):
+            with patch(
+                "domain_models.config._get_secret",
+                return_value=os.getenv("TEST_SECRET", "default_test_value"),
+            ):
                 config = PipelineConfig(
                     transcriber_language="ja",
                     transcriber_model_size="tiny",
@@ -307,7 +314,9 @@ def cell_tests_c05_4(mo: Any) -> tuple[Any, ...]:
         from unittest.mock import patch
 
         from domain_models import AudioChunk, PipelineConfig
-        MockModule = namedtuple('MockModule', ['WhisperModel'])
+
+        MockModule = namedtuple("MockModule", ["WhisperModel"])
+
         class MockModel:
             pass
 
@@ -323,12 +332,22 @@ def cell_tests_c05_4(mo: Any) -> tuple[Any, ...]:
                         raise FileNotFoundError(msg)
                     return []
 
-            with patch("domain_models.config._get_secret", return_value="test"):
-                config_err = PipelineConfig(transcriber_language="ja", transcriber_model_size="tiny")
+            import os
+
+            with patch(
+                "domain_models.config._get_secret",
+                return_value=os.getenv("TEST_SECRET", "default_test_value"),
+            ):
+                config_err = PipelineConfig(
+                    transcriber_language="ja", transcriber_model_size="tiny"
+                )
                 transcriber_err = MockFasterWhisperTranscriberErr(config_err)
 
             chunk_err = AudioChunk(
-                chunk_filepath="/path/to/nonexistent.wav", start_time=0.0, end_time=10.0, chunk_index=0
+                chunk_filepath="/path/to/nonexistent.wav",
+                start_time=0.0,
+                end_time=10.0,
+                chunk_index=0,
             )
 
             try:
@@ -345,6 +364,7 @@ def cell_tests_c05_4(mo: Any) -> tuple[Any, ...]:
 @app.cell
 def cell_tests_c06_1() -> tuple[object, ...]:
     import marimo as _mo_c06
+
     return (_mo_c06,)
 
 
@@ -374,7 +394,9 @@ def cell_tests_c06_3(_mo_c06: Any) -> tuple[Any, ...]:
         from unittest.mock import patch
 
         from domain_models import AudioChunk, SpeakerLabel
-        MockModule = namedtuple('MockModule', ['Pipeline'])
+
+        MockModule = namedtuple("MockModule", ["Pipeline"])
+
         class MockPipeline:
             pass
 
@@ -403,13 +425,19 @@ def cell_tests_c06_3(_mo_c06: Any) -> tuple[Any, ...]:
                 chunk_filepath=chunk_01_name, start_time=10.0, end_time=20.0, chunk_index=0
             )
 
-            diarizer = MockPyannoteDiarizer(auth_token="dummy_token")
+            import os
+
+            diarizer = MockPyannoteDiarizer(
+                auth_token=os.getenv("TEST_AUTH_TOKEN", "default_test_token")
+            )
 
             try:
                 results_01 = diarizer.diarize(chunk_01)
                 output_msg = "**Scenario ID: UAT-C06-01 - Primary Path - SUCCESS**\n\n"
                 for r in results_01:
-                    output_msg += f"- Speaker Segment: {r.start_time} - {r.end_time}: {r.speaker_id}\n"
+                    output_msg += (
+                        f"- Speaker Segment: {r.start_time} - {r.end_time}: {r.speaker_id}\n"
+                    )
                 return _mo_c06.md(output_msg)
             except Exception as e:
                 return _mo_c06.md(f"**Cycle 06 UAT Failed:** {e}")
@@ -427,7 +455,9 @@ def cell_tests_c06_4(_mo_c06: Any) -> tuple[Any, ...]:
         from unittest.mock import patch
 
         from domain_models import AudioChunk
-        MockModule = namedtuple('MockModule', ['Pipeline'])
+
+        MockModule = namedtuple("MockModule", ["Pipeline"])
+
         class MockPipeline:
             pass
 
@@ -437,15 +467,23 @@ def cell_tests_c06_4(_mo_c06: Any) -> tuple[Any, ...]:
             class MockPyannoteDiarizerErr(PyannoteDiarizer):
                 def diarize(self, chunk: AudioChunk) -> list[Any]:
                     from pathlib import Path
+
                     if not Path(chunk.chunk_filepath).exists():
                         msg = f"Audio chunk file not found: {chunk.chunk_filepath}"
                         raise FileNotFoundError(msg)
                     return []
 
             chunk_err = AudioChunk(
-                chunk_filepath="/path/to/nonexistent.wav", start_time=0.0, end_time=10.0, chunk_index=0
+                chunk_filepath="/path/to/nonexistent.wav",
+                start_time=0.0,
+                end_time=10.0,
+                chunk_index=0,
             )
-            diarizer_err = MockPyannoteDiarizerErr(auth_token="dummy_token")
+            import os
+
+            diarizer_err = MockPyannoteDiarizerErr(
+                auth_token=os.getenv("TEST_AUTH_TOKEN", "default_test_token")
+            )
 
             try:
                 diarizer_err.diarize(chunk_err)

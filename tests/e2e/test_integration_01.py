@@ -182,7 +182,9 @@ def test_ffmpeg_chunker_integration() -> None:
                 cmd = args[0]
                 output_file = Path(cmd[-1])
                 import shutil
+
                 shutil.copy(tf.name, output_file)
+
             mock_run.side_effect = side_effect
             chunks: list[AudioChunk] = chunker.split(source)
 
@@ -211,7 +213,7 @@ def test_pipeline_diarization_integration() -> None:
                     start_time=chunk.start_time + 0.5,
                     end_time=chunk.start_time + 1.0,
                     speaker_id="SPEAKER_01",
-                )
+                ),
             ]
 
     class MultiSpeechTranscriber(Transcriber):
@@ -228,7 +230,7 @@ def test_pipeline_diarization_integration() -> None:
                     start_time=chunk.start_time + 0.5,
                     end_time=chunk.start_time + 1.0,
                     text="World",
-                )
+                ),
             ]
 
     storage = create_storage_client()

@@ -59,6 +59,7 @@ suppress-dummy-args = true  # Arguments starting with _ do not require type hint
 [tool.pytest.ini_options]
 addopts = "--cov=domain_models --cov=meetingnoter.processing.vad --cov=meetingnoter.processing.transcriber --cov=meetingnoter.processing.chunker --cov=meetingnoter.processing.diarizer --cov=meetingnoter.ingestion.drive_client --cov-report=term-missing"
 testpaths = ["tests"]
+pythonpath = ["src", "."]
 
 [tool.mypy]
 strict = true
