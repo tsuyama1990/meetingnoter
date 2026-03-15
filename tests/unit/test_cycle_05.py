@@ -7,7 +7,7 @@ from domain_models import AudioChunk, PipelineConfig, SpeechSegment
 from meetingnoter.processing.transcriber import FasterWhisperTranscriber
 
 
-@patch("faster_whisper.WhisperModel")
+@patch("meetingnoter.processing.transcriber.WhisperModel")
 def test_transcriber_initialization(
     mock_whisper_model: MagicMock, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -27,7 +27,7 @@ def test_transcriber_initialization(
 
 
 @patch("pathlib.Path.is_file", return_value=True)
-@patch("faster_whisper.WhisperModel")
+@patch("meetingnoter.processing.transcriber.WhisperModel")
 def test_transcriber_load_and_transcribe(
     mock_whisper_model: MagicMock,
     mock_is_file: MagicMock,
@@ -53,14 +53,13 @@ def test_transcriber_load_and_transcribe(
 
     mock_model_instance.transcribe.return_value = ([mock_segment1, mock_segment2], None)
 
-
     with patch("pathlib.Path.is_relative_to", return_value=True):
         config = PipelineConfig(transcriber_language="ja")
         transcriber = FasterWhisperTranscriber(config)
 
-    chunk = AudioChunk(
-        chunk_filepath=str(tmp_path / "test.wav"), start_time=10.0, end_time=20.0, chunk_index=0
-    )
+    test_file = tmp_path / "test.wav"
+    test_file.touch()
+    chunk = AudioChunk(chunk_filepath=str(test_file), start_time=10.0, end_time=20.0, chunk_index=0)
 
     speech_segments = [SpeechSegment(start_time=10.0, end_time=15.0)]
 
@@ -106,7 +105,7 @@ def test_transcriber_file_not_found(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @patch("pathlib.Path.is_file", return_value=True)
-@patch("faster_whisper.WhisperModel")
+@patch("meetingnoter.processing.transcriber.WhisperModel")
 def test_transcriber_inference_error(
     mock_whisper_model: MagicMock,
     mock_is_file: MagicMock,
@@ -124,8 +123,10 @@ def test_transcriber_inference_error(
         config = PipelineConfig()
         transcriber = FasterWhisperTranscriber(config)
 
+        test_file = tmp_path / "test.wav"
+        test_file.touch()
         chunk = AudioChunk(
-            chunk_filepath=str(tmp_path / "test.wav"), start_time=0.0, end_time=10.0, chunk_index=0
+            chunk_filepath=str(test_file), start_time=0.0, end_time=10.0, chunk_index=0
         )
 
         with pytest.raises(
@@ -135,7 +136,7 @@ def test_transcriber_inference_error(
 
 
 @patch("pathlib.Path.is_file", return_value=True)
-@patch("faster_whisper.WhisperModel")
+@patch("meetingnoter.processing.transcriber.WhisperModel")
 def test_transcriber_load_model_not_found(
     mock_whisper_model: MagicMock,
     mock_is_file: MagicMock,
@@ -151,8 +152,10 @@ def test_transcriber_load_model_not_found(
         config = PipelineConfig()
         transcriber = FasterWhisperTranscriber(config)
 
+        test_file = tmp_path / "test.wav"
+        test_file.touch()
         chunk = AudioChunk(
-            chunk_filepath=str(tmp_path / "test.wav"), start_time=0.0, end_time=10.0, chunk_index=0
+            chunk_filepath=str(test_file), start_time=0.0, end_time=10.0, chunk_index=0
         )
 
         with pytest.raises(RuntimeError, match="Failed to load Faster Whisper model"):
@@ -160,7 +163,7 @@ def test_transcriber_load_model_not_found(
 
 
 @patch("pathlib.Path.is_file", return_value=True)
-@patch("faster_whisper.WhisperModel")
+@patch("meetingnoter.processing.transcriber.WhisperModel")
 def test_transcriber_model_none_after_load(
     mock_whisper_model: MagicMock,
     mock_is_file: MagicMock,
@@ -175,8 +178,10 @@ def test_transcriber_model_none_after_load(
         config = PipelineConfig()
         transcriber = FasterWhisperTranscriber(config)
 
+        test_file = tmp_path / "test.wav"
+        test_file.touch()
         chunk = AudioChunk(
-            chunk_filepath=str(tmp_path / "test.wav"), start_time=0.0, end_time=10.0, chunk_index=0
+            chunk_filepath=str(test_file), start_time=0.0, end_time=10.0, chunk_index=0
         )
 
         # Force _load_model to do nothing, so model remains None
@@ -187,28 +192,28 @@ def test_transcriber_model_none_after_load(
             transcriber.transcribe(chunk, [])
 
 
-@patch("faster_whisper.WhisperModel")
-def test_transcriber_import_error(
-    mock_whisper_model: MagicMock, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_transcriber_import_error(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("GOOGLE_API_KEY", "env_dummy_key_123")
     monkeypatch.setenv("PYANNOTE_AUTH_TOKEN", "env_dummy_token_123")
     monkeypatch.setenv("FILE_ID", "env_dummy_file_123")
 
+    import importlib
     import sys
 
     # Hide the faster_whisper module to trigger ImportError
-    with patch.dict(sys.modules, {"faster_whisper": None}):
-        config = PipelineConfig()
-        transcriber = FasterWhisperTranscriber(config)
-        with pytest.raises(
-            ImportError, match="Required library 'faster-whisper' or 'torch' is not installed."
-        ):
-            transcriber._load_model()
+    import meetingnoter.processing.transcriber
+
+    with (
+        patch.dict(sys.modules, {"faster_whisper": None}),
+        pytest.raises(
+            ImportError, match="Required library 'faster-whisper' or 'torch' is not installed:"
+        ),
+    ):
+        importlib.reload(meetingnoter.processing.transcriber)
 
 
 @patch("pathlib.Path.is_file", return_value=True)
-@patch("faster_whisper.WhisperModel")
+@patch("meetingnoter.processing.transcriber.WhisperModel")
 @patch("torch.cuda.is_available", return_value=True)
 @patch("torch.cuda.empty_cache")
 def test_transcriber_garbage_collection(
@@ -230,8 +235,10 @@ def test_transcriber_garbage_collection(
         config = PipelineConfig()
         transcriber = FasterWhisperTranscriber(config)
 
+        test_file = tmp_path / "test.wav"
+        test_file.touch()
         chunk = AudioChunk(
-            chunk_filepath=str(tmp_path / "test.wav"),
+            chunk_filepath=str(test_file),
             start_time=0.0,
             end_time=10.0,
             chunk_index=0,
@@ -241,10 +248,14 @@ def test_transcriber_garbage_collection(
 
         mock_empty_cache.assert_called_once()
 
+
 @patch("pathlib.Path.is_file", return_value=True)
-@patch("faster_whisper.WhisperModel")
+@patch("meetingnoter.processing.transcriber.WhisperModel")
 def test_transcriber_cuda_oom_error_during_load(
-    mock_whisper_model: MagicMock, mock_is_file: MagicMock, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    mock_whisper_model: MagicMock,
+    mock_is_file: MagicMock,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("GOOGLE_API_KEY", "env_dummy_key_123")
     monkeypatch.setenv("PYANNOTE_AUTH_TOKEN", "env_dummy_token_123")
@@ -255,18 +266,25 @@ def test_transcriber_cuda_oom_error_during_load(
         config = PipelineConfig()
         transcriber = FasterWhisperTranscriber(config)
 
+        test_file = tmp_path / "test.wav"
+        test_file.touch()
         chunk = AudioChunk(
-            chunk_filepath=str(tmp_path / "test.wav"), start_time=0.0, end_time=10.0, chunk_index=0
+            chunk_filepath=str(test_file), start_time=0.0, end_time=10.0, chunk_index=0
         )
 
-        with pytest.raises(RuntimeError, match="CUDA Out of Memory when trying to load Faster Whisper model."):
+        with pytest.raises(
+            RuntimeError, match="CUDA Out of Memory when trying to load Faster Whisper model."
+        ):
             transcriber.transcribe(chunk, [])
 
 
 @patch("pathlib.Path.is_file", return_value=True)
-@patch("faster_whisper.WhisperModel")
+@patch("meetingnoter.processing.transcriber.WhisperModel")
 def test_transcriber_cuda_oom_error_during_inference(
-    mock_whisper_model: MagicMock, mock_is_file: MagicMock, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    mock_whisper_model: MagicMock,
+    mock_is_file: MagicMock,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("GOOGLE_API_KEY", "env_dummy_key_123")
     monkeypatch.setenv("PYANNOTE_AUTH_TOKEN", "env_dummy_token_123")
@@ -279,12 +297,15 @@ def test_transcriber_cuda_oom_error_during_inference(
         config = PipelineConfig()
         transcriber = FasterWhisperTranscriber(config)
 
+        test_file = tmp_path / "test.wav"
+        test_file.touch()
         chunk = AudioChunk(
-            chunk_filepath=str(tmp_path / "test.wav"), start_time=0.0, end_time=10.0, chunk_index=0
+            chunk_filepath=str(test_file), start_time=0.0, end_time=10.0, chunk_index=0
         )
 
         with pytest.raises(RuntimeError, match="CUDA Out of Memory during transcription."):
             transcriber.transcribe(chunk, [])
+
 
 def test_transcriber_cleanup_resources_no_torch(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("GOOGLE_API_KEY", "env_dummy_key_123")
@@ -298,6 +319,7 @@ def test_transcriber_cleanup_resources_no_torch(monkeypatch: pytest.MonkeyPatch)
         # Should catch ImportError and pass
         transcriber._cleanup_resources()
 
+
 def test_transcriber_invalid_path_relative(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("GOOGLE_API_KEY", "env_dummy_key_123")
     monkeypatch.setenv("PYANNOTE_AUTH_TOKEN", "env_dummy_token_123")
@@ -305,18 +327,21 @@ def test_transcriber_invalid_path_relative(monkeypatch: pytest.MonkeyPatch) -> N
     config = PipelineConfig()
     transcriber = FasterWhisperTranscriber(config)
 
-    chunk = AudioChunk(
-        chunk_filepath="/etc/passwd", start_time=0.0, end_time=10.0, chunk_index=0
-    )
-    with patch("pathlib.Path.is_file", return_value=True):
-        with patch("pathlib.Path.is_relative_to", return_value=False):
-            with pytest.raises(ValueError, match="is not within allowed directories"):
-                transcriber._validate_audio_file(Path("/etc/passwd"))
+    with (
+        patch("pathlib.Path.is_file", return_value=True),
+        patch("pathlib.Path.is_relative_to", return_value=False),
+        pytest.raises(ValueError, match="is not within allowed directories"),
+    ):
+        transcriber._validate_audio_file(Path("/etc/passwd"))
+
 
 @patch("pathlib.Path.is_file", return_value=True)
-@patch("faster_whisper.WhisperModel")
+@patch("meetingnoter.processing.transcriber.WhisperModel")
 def test_transcriber_general_error_during_inference(
-    mock_whisper_model: MagicMock, mock_is_file: MagicMock, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    mock_whisper_model: MagicMock,
+    mock_is_file: MagicMock,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("GOOGLE_API_KEY", "env_dummy_key_123")
     monkeypatch.setenv("PYANNOTE_AUTH_TOKEN", "env_dummy_token_123")
@@ -329,17 +354,25 @@ def test_transcriber_general_error_during_inference(
         config = PipelineConfig()
         transcriber = FasterWhisperTranscriber(config)
 
+        test_file = tmp_path / "test.wav"
+        test_file.touch()
         chunk = AudioChunk(
-            chunk_filepath=str(tmp_path / "test.wav"), start_time=0.0, end_time=10.0, chunk_index=0
+            chunk_filepath=str(test_file), start_time=0.0, end_time=10.0, chunk_index=0
         )
 
-        with pytest.raises(RuntimeError, match="Faster whisper transcription failed: Some other error"):
+        with pytest.raises(
+            RuntimeError, match="Faster whisper transcription failed: Some other error"
+        ):
             transcriber.transcribe(chunk, [])
 
+
 @patch("pathlib.Path.is_file", return_value=True)
-@patch("faster_whisper.WhisperModel")
+@patch("meetingnoter.processing.transcriber.WhisperModel")
 def test_transcriber_general_runtime_error_during_load(
-    mock_whisper_model: MagicMock, mock_is_file: MagicMock, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    mock_whisper_model: MagicMock,
+    mock_is_file: MagicMock,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("GOOGLE_API_KEY", "env_dummy_key_123")
     monkeypatch.setenv("PYANNOTE_AUTH_TOKEN", "env_dummy_token_123")
@@ -350,17 +383,25 @@ def test_transcriber_general_runtime_error_during_load(
         config = PipelineConfig()
         transcriber = FasterWhisperTranscriber(config)
 
+        test_file = tmp_path / "test.wav"
+        test_file.touch()
         chunk = AudioChunk(
-            chunk_filepath=str(tmp_path / "test.wav"), start_time=0.0, end_time=10.0, chunk_index=0
+            chunk_filepath=str(test_file), start_time=0.0, end_time=10.0, chunk_index=0
         )
 
-        with pytest.raises(RuntimeError, match="Failed to load Faster Whisper model: Other runtime load error"):
+        with pytest.raises(
+            RuntimeError, match="Failed to load Faster Whisper model: Other runtime load error"
+        ):
             transcriber.transcribe(chunk, [])
 
+
 @patch("pathlib.Path.is_file", return_value=True)
-@patch("faster_whisper.WhisperModel")
+@patch("meetingnoter.processing.transcriber.WhisperModel")
 def test_transcriber_general_runtime_error_during_inference(
-    mock_whisper_model: MagicMock, mock_is_file: MagicMock, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    mock_whisper_model: MagicMock,
+    mock_is_file: MagicMock,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("GOOGLE_API_KEY", "env_dummy_key_123")
     monkeypatch.setenv("PYANNOTE_AUTH_TOKEN", "env_dummy_token_123")
@@ -373,14 +414,21 @@ def test_transcriber_general_runtime_error_during_inference(
         config = PipelineConfig()
         transcriber = FasterWhisperTranscriber(config)
 
+        test_file = tmp_path / "test.wav"
+        test_file.touch()
         chunk = AudioChunk(
-            chunk_filepath=str(tmp_path / "test.wav"), start_time=0.0, end_time=10.0, chunk_index=0
+            chunk_filepath=str(test_file), start_time=0.0, end_time=10.0, chunk_index=0
         )
 
-        with pytest.raises(RuntimeError, match="Faster whisper transcription failed: Other runtime inference error"):
+        with pytest.raises(
+            RuntimeError, match="Faster whisper transcription failed: Other runtime inference error"
+        ):
             transcriber.transcribe(chunk, [])
 
-def test_transcriber_cleanup_resources_torch_cuda_empty_cache(monkeypatch: pytest.MonkeyPatch) -> None:
+
+def test_transcriber_cleanup_resources_torch_cuda_empty_cache(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setenv("GOOGLE_API_KEY", "env_dummy_key_123")
     monkeypatch.setenv("PYANNOTE_AUTH_TOKEN", "env_dummy_token_123")
     monkeypatch.setenv("FILE_ID", "env_dummy_file_123")
@@ -388,7 +436,9 @@ def test_transcriber_cleanup_resources_torch_cuda_empty_cache(monkeypatch: pytes
     config = PipelineConfig()
     transcriber = FasterWhisperTranscriber(config)
 
-    with patch("torch.cuda.is_available", return_value=True):
-        with patch("torch.cuda.empty_cache") as mock_empty_cache:
-            transcriber._cleanup_resources()
-            mock_empty_cache.assert_called_once()
+    with (
+        patch("torch.cuda.is_available", return_value=True),
+        patch("torch.cuda.empty_cache") as mock_empty_cache,
+    ):
+        transcriber._cleanup_resources()
+        mock_empty_cache.assert_called_once()

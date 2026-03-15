@@ -1,13 +1,30 @@
 import os
-from typing import Any, cast
+from typing import Any
 
 from pydantic import Field
 from pydantic_settings import BaseSettings
 
 try:
-    from google.colab import userdata
+    import google.colab.userdata
+
+    _userdata: Any = google.colab.userdata
 except ImportError:
-    userdata: Any = None  # type: ignore[no-redef]
+    _userdata = None
+
+
+def _get_secret(key_name: str) -> str:
+    val = os.environ.get(key_name)
+    if val is not None:
+        return str(val)
+    if _userdata is not None:
+        try:
+            val = _userdata.get(key_name)
+            if val is not None:
+                return str(val)
+        except getattr(__import__("google").colab.userdata, "SecretNotFoundError", Exception):
+            pass
+    msg = f"Missing required configuration secret: {key_name}"
+    raise ValueError(msg)
 
 
 class PipelineConfig(BaseSettings):
@@ -15,28 +32,17 @@ class PipelineConfig(BaseSettings):
 
     # Required Secrets fetched dynamically to prevent hardcoding or exposure
     google_api_key: str = Field(
-        default_factory=lambda: cast(
-            str,
-            os.environ.get("GOOGLE_API_KEY")
-            or (userdata.get("GOOGLE_API_KEY") if userdata else None),
-        ),
+        default_factory=lambda: _get_secret("GOOGLE_API_KEY"),
         description="API key for Google Drive access",
         min_length=1,
     )
     pyannote_auth_token: str = Field(
-        default_factory=lambda: cast(
-            str,
-            os.environ.get("PYANNOTE_AUTH_TOKEN")
-            or (userdata.get("PYANNOTE_AUTH_TOKEN") if userdata else None),
-        ),
+        default_factory=lambda: _get_secret("PYANNOTE_AUTH_TOKEN"),
         description="HuggingFace token for Pyannote Diarization",
         min_length=1,
     )
     file_id: str = Field(
-        default_factory=lambda: cast(
-            str,
-            os.environ.get("FILE_ID") or (userdata.get("FILE_ID") if userdata else None),
-        ),
+        default_factory=lambda: _get_secret("FILE_ID"),
         description="The Google Drive file ID to process",
         min_length=1,
     )

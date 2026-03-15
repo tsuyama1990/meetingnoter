@@ -1,3 +1,4 @@
+import gc
 import typing
 from pathlib import Path
 
@@ -9,25 +10,25 @@ from domain_models import (
     TranscriptionSegment,
 )
 
+try:
+    import torch
+    from faster_whisper import WhisperModel
+except ImportError as e:
+    msg = f"Required library 'faster-whisper' or 'torch' is not installed: {e}"
+    raise ImportError(msg) from e
+
 
 class FasterWhisperTranscriber(Transcriber):
     """Concrete implementation of Transcriber using faster-whisper."""
 
     def __init__(self, config: PipelineConfig) -> None:
         self.config = config
-        self.model: typing.Any = None
+        self.model: WhisperModel | None = None
 
     def _cleanup_resources(self) -> None:
-        import gc
-
         gc.collect()
-        try:
-            import torch
-
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-        except ImportError:
-            pass
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
     def _validate_audio_file(self, file_path: Path) -> None:
         path = file_path.resolve()
@@ -42,13 +43,6 @@ class FasterWhisperTranscriber(Transcriber):
 
     def _load_model(self) -> None:
         if self.model is None:
-            try:
-                import torch
-                from faster_whisper import WhisperModel
-            except ImportError as e:
-                msg = "Required library 'faster-whisper' or 'torch' is not installed."
-                raise ImportError(msg) from e
-
             try:
                 device = "cuda" if torch.cuda.is_available() else "cpu"
                 self.model = WhisperModel(
@@ -115,13 +109,7 @@ class FasterWhisperTranscriber(Transcriber):
                 msg = f"Faster whisper transcription failed: {e}"
                 raise RuntimeError(msg) from e
             finally:
-                import gc
-
-                import torch
-
-                gc.collect()
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
+                self._cleanup_resources()
 
             return result
 

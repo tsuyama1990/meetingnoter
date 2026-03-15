@@ -17,14 +17,14 @@ Name                                         Stmts   Miss  Cover   Missing
 --------------------------------------------------------------------------
 src/domain_models/__init__.py                    5      0   100%
 src/domain_models/audio.py                      27      0   100%
-src/domain_models/config.py                     20      0   100%
+src/domain_models/config.py                     34     13    62%   10, 16-27
 src/domain_models/interfaces.py                 13      0   100%
 src/domain_models/transcription.py              38      0   100%
 src/meetingnoter/__init__.py                     0      0   100%
 src/meetingnoter/ingestion/drive_client.py      46      3    93%   53, 59, 65
 src/meetingnoter/processing/chunker.py          58      5    91%   25-26, 41, 75-76
-src/meetingnoter/processing/transcriber.py      75      0   100%
+src/meetingnoter/processing/transcriber.py      67      0   100%
 src/meetingnoter/processing/vad.py             184     58    68%   14-16, 49-50, 68-69, 86-87, 102, 108-109, 125-132, 142-148, 172-173, 189, 196-197, 207-216, 223, 227-229, 232-233, 236-237, 240-241, 244-245, 265-266, 269-273, 279, 283-284
 --------------------------------------------------------------------------
-TOTAL                                          466     66    86%
-============================== 47 passed in 7.31s ==============================
+TOTAL                                          472     79    83%
+============================== 47 passed in 7.28s ==============================

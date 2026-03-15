@@ -4,11 +4,14 @@ from typing import Any
 import marimo
 
 try:
-    import google.colab  # type: ignore[import-not-found, import-untyped]
+    import google.colab
+    from google.colab import userdata
 
     _google_mod: Any = google
+    _userdata: Any = userdata
 except ImportError:
     _google_mod = None
+    _userdata = None
 
 __generated_with = "0.20.4"
 app = marimo.App(width="medium")
@@ -240,21 +243,27 @@ def cell_tests_c05_3(mo: Any) -> tuple[Any, ...]:
     from pathlib import Path
 
     from domain_models import AudioChunk as _AudioChunk
+    from domain_models import PipelineConfig as _PipelineConfig
     from domain_models import SpeechSegment as _SpeechSegment
-    from meetingnoter.processing.transcriber import (
-        FasterWhisperTranscriber as _FasterWhisperTranscriber,
-    )
 
     try:
         import importlib.util
 
         if not importlib.util.find_spec("faster_whisper") or not importlib.util.find_spec("torch"):
             raise ImportError
-    except ImportError:
+        from meetingnoter.processing.transcriber import (
+            FasterWhisperTranscriber as _FasterWhisperTranscriber,
+        )
+    except ImportError as e:
         _output_3 = mo.md(
-            "**Cycle 05 UAT Skipped:** Required dependencies (faster-whisper, torch) are missing."
+            f"**Cycle 05 UAT Skipped:** Required dependencies (faster-whisper, torch) are missing. {e}"
         )
     else:
+        import os
+
+        os.environ["GOOGLE_API_KEY"] = "dummy"
+        os.environ["PYANNOTE_AUTH_TOKEN"] = "dummy"
+        os.environ["FILE_ID"] = "dummy"
         # 1. Setup a dummy wav file
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf:
             with wave.open(tf.name, "wb") as w:
@@ -272,9 +281,12 @@ def cell_tests_c05_3(mo: Any) -> tuple[Any, ...]:
         speech_segments_01 = [_SpeechSegment(start_time=10.0, end_time=15.0)]
 
         # We test the *actual functionality* but use "tiny" model for execution speed
-        transcriber_01 = _FasterWhisperTranscriber(
-            language="ja", model_size="tiny", compute_type="int8"
+        _config = _PipelineConfig(
+            transcriber_language="ja",
+            transcriber_model_size="tiny",
+            transcriber_compute_type="int8",
         )
+        transcriber_01 = _FasterWhisperTranscriber(_config)
 
         try:
             results_01 = transcriber_01.transcribe(chunk_01, speech_segments_01)
@@ -294,11 +306,23 @@ def cell_tests_c05_3(mo: Any) -> tuple[Any, ...]:
 @app.cell
 def cell_tests_c05_4(mo: Any) -> tuple[Any, ...]:
     from domain_models import AudioChunk as _AudioChunk_err
-    from meetingnoter.processing.transcriber import (
-        FasterWhisperTranscriber as _FasterWhisperTranscriber_err,
-    )
+    from domain_models import PipelineConfig as _PipelineConfig_err
 
-    transcriber_err = _FasterWhisperTranscriber_err(language="ja", model_size="tiny")
+    try:
+        from meetingnoter.processing.transcriber import (
+            FasterWhisperTranscriber as _FasterWhisperTranscriber_err,
+        )
+    except ImportError:
+        return (mo.md("**Cycle 05 Error Handling UAT Skipped.**"),)
+
+    import os
+
+    os.environ["GOOGLE_API_KEY"] = "dummy"
+    os.environ["PYANNOTE_AUTH_TOKEN"] = "dummy"
+    os.environ["FILE_ID"] = "dummy"
+
+    _config_err = _PipelineConfig_err(transcriber_language="ja", transcriber_model_size="tiny")
+    transcriber_err = _FasterWhisperTranscriber_err(_config_err)
 
     chunk_err = _AudioChunk_err(
         chunk_filepath="/path/to/nonexistent.wav", start_time=0.0, end_time=10.0, chunk_index=0

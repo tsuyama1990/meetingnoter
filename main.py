@@ -118,14 +118,7 @@ def create_components(
         min_silence_duration_ms=1000,
         model_path=config.silero_vad_model_path,
     )
-    transcriber: Transcriber = FasterWhisperTranscriber(
-        model_size="large-v3",
-        compute_type="int8",
-        language=str(config.transcriber_language),
-        vad_filter=bool(config.transcriber_vad_filter),
-        condition_on_previous_text=bool(config.transcriber_condition_on_previous_text),
-        temperature=list(config.transcriber_temperature),
-    )
+    transcriber: Transcriber = FasterWhisperTranscriber(config)
     diarizer: Diarizer = PyannoteDiarizer(auth_token=config.pyannote_auth_token)
     return storage, splitter, detector, transcriber, diarizer
 
