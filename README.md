@@ -41,6 +41,24 @@ export FILE_ID="your_google_drive_file_id"
 uv run main.py
 ```
 
+### Quick Start (Mock Mode)
+
+You can run a mock execution programmatically using the domain models:
+
+```python
+from domain_models import DiarizedSegment, DiarizedTranscript
+
+mock_segments = [
+    DiarizedSegment(start_time=0.0, end_time=5.0, speaker_id="SPEAKER_00", text="Hello, thank you for joining the interview today."),
+    DiarizedSegment(start_time=5.5, end_time=12.0, speaker_id="SPEAKER_01", text="Thanks for having me. I am excited to discuss the product."),
+    DiarizedSegment(start_time=12.5, end_time=20.0, speaker_id="SPEAKER_00", text="Great! Let's get started. What is the main problem you face?"),
+]
+mock_transcript = DiarizedTranscript(segments=mock_segments)
+
+for seg in mock_transcript.segments:
+    print(f"[{seg.start_time:.1f}s - {seg.end_time:.1f}s] {seg.speaker_id}: {seg.text}")
+```
+
 ### Testing and Interactive UAT Notebook
 
 You can verify the pipeline components using the included test suite.
@@ -54,7 +72,7 @@ An interactive tutorial and User Acceptance Testing (UAT) notebook is available 
 
 ```bash
 # Run the UAT notebook
-PYTHONPATH=src uv run marimo edit tests/uat/UAT_AND_TUTORIAL.py
+PYTHONPATH=src uv run marimo edit tutorials/UAT_AND_TUTORIAL.py
 ```
 
 ## Structure

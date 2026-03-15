@@ -1,5 +1,6 @@
 from collections.abc import Callable
 from typing import Any
+from typing import Any
 
 import marimo
 
@@ -73,7 +74,9 @@ def cell_tests(
         TranscriptionSegment,
     )
 
-    def test_happy_path() -> Any:
+    import typing as _typing
+
+    def test_happy_path() -> _typing.Any:
         try:
             source = AudioSource(filepath="sample.m4a", duration_seconds=120.0)
             chunk = AudioChunk(
@@ -103,7 +106,9 @@ def cell_tests(
         except Exception as e:
             return mo.md(f"**Happy Path Failed!** Error: {e}")
 
-    def test_error_handling() -> Any:
+    import typing as _typing_err
+
+    def test_error_handling() -> _typing_err.Any:
         try:
             # Trigger error: start_time > end_time
             AudioChunk(
@@ -149,7 +154,9 @@ def cell_markdown_c03(mo: Any) -> Any:
 
 @app.cell
 def cell_tests_c03(mo: Any) -> tuple[Callable[[], Any], Any]:
-    def test_c03_ffmpeg_chunker() -> Any:
+    import typing as _typing_c03
+
+    def test_c03_ffmpeg_chunker() -> _typing_c03.Any:
         import importlib
         import shutil
         import tempfile
@@ -210,7 +217,7 @@ def cell_tests_c05_1() -> tuple[object, ...]:
 
 @app.cell
 def cell_tests_c05_2(mo: object) -> tuple[object, ...]:
-    import typing as _typing
+    from typing import Any
 
     mo_typed = _typing.cast(_typing.Any, mo)
     mo_typed.md(
@@ -235,7 +242,9 @@ def cell_tests_c05_3(mo: Any) -> tuple[Any, ...]:
     from domain_models import PipelineConfig as _PipelineConfig
     from domain_models import SpeechSegment as _SpeechSegment
 
-    def test_c05_transcription_engine_real() -> Any:
+    import typing as _typing_c05_real
+
+    def test_c05_transcription_engine_real() -> _typing_c05_real.Any:
         try:
             import importlib
             import importlib.util
@@ -315,7 +324,9 @@ def cell_tests_c05_4(mo: Any) -> tuple[Any, ...]:
     from domain_models import AudioChunk as _AudioChunk_err
     from domain_models import PipelineConfig as _PipelineConfig_err
 
-    def test_c05_transcription_error_handling() -> Any:
+    import typing as _typing_c05_err
+
+    def test_c05_transcription_error_handling() -> _typing_c05_err.Any:
         try:
             import importlib
 
@@ -378,7 +389,9 @@ def cell_tests_c07_2(mo: Any) -> tuple[Any, ...]:
     from domain_models import PipelineConfig as _C07Config
     from main import run_pipeline as _c07_run_pipeline
 
-    def test_c07_primary_path() -> Any:
+    import typing as _typing_c07_primary
+
+    def test_c07_primary_path() -> _typing_c07_primary.Any:
         try:
             import os
             from unittest.mock import MagicMock, patch
@@ -484,7 +497,9 @@ def cell_tests_c07_3(mo: Any) -> tuple[Any, ...]:
     from domain_models import PipelineConfig as _C07ErrConfig
     from main import run_pipeline as _c07_err_run_pipeline
 
-    def test_c07_error_handling() -> Any:
+    import typing as _typing_c07_err
+
+    def test_c07_error_handling() -> _typing_c07_err.Any:
         try:
             import os
 
@@ -578,7 +593,9 @@ def cell_tests_c08_1(mo: Any) -> tuple[Any, ...]:
 
 @app.cell
 def cell_tests_c08_2(mo: Any) -> tuple[Any, ...]:
-    def test_c08_primary_path() -> Any:
+    import typing as _typing_c08_primary
+
+    def test_c08_primary_path() -> _typing_c08_primary.Any:
         try:
             from domain_models import AudioChunk, SpeakerLabel, TranscriptionSegment
             from meetingnoter import TranscriptMerger
@@ -614,7 +631,9 @@ def cell_tests_c08_2(mo: Any) -> tuple[Any, ...]:
 
 @app.cell
 def cell_tests_c08_3(mo: Any) -> tuple[Any, ...]:
-    def test_c08_error_handling() -> Any:
+    import typing as _typing_c08_err
+
+    def test_c08_error_handling() -> _typing_c08_err.Any:
         try:
             from domain_models import AudioChunk, SpeakerLabel, TranscriptionSegment
             from meetingnoter import TranscriptMerger
@@ -651,3 +670,32 @@ def cell_tests_c08_3(mo: Any) -> tuple[Any, ...]:
 
     _output_c08_2 = mo.vstack([test_c08_error_handling()])
     return (_output_c08_2,)
+
+@app.cell
+def quick_start_markdown(mo: Any) -> tuple[Any, ...]:
+    from typing import Any
+    return (mo.md("""
+# Quick Start: Mock Interview Processing
+
+Run this cell to see a mock pipeline execution where a dummy interview is chunked, diarized, and transcribed into a clean markdown format. This section handles missing API keys by running in 'Mock Mode'.
+"""),)
+
+@app.cell
+def quick_start_execution(mo: Any) -> tuple[Any, ...]:
+    from typing import Any
+    import os
+    from domain_models import DiarizedSegment, DiarizedTranscript
+
+    # Mock Mode
+    mock_segments = [
+        DiarizedSegment(start_time=0.0, end_time=5.0, speaker_id="SPEAKER_00", text="Hello, thank you for joining the interview today."),
+        DiarizedSegment(start_time=5.5, end_time=12.0, speaker_id="SPEAKER_01", text="Thanks for having me. I am excited to discuss the product."),
+        DiarizedSegment(start_time=12.5, end_time=20.0, speaker_id="SPEAKER_00", text="Great! Let's get started. What is the main problem you face?"),
+    ]
+    mock_transcript = DiarizedTranscript(segments=mock_segments)
+
+    output = "**Mock Mode Output:**\\n\\n"
+    for seg in mock_transcript.segments:
+        output += f"- **[{seg.start_time:.1f}s - {seg.end_time:.1f}s] {seg.speaker_id}:** {seg.text}\\n"
+
+    return (mo.md(output),)
