@@ -3,13 +3,129 @@ platform linux -- Python 3.12.13, pytest-9.0.2, pluggy-1.6.0
 rootdir: /app
 configfile: pyproject.toml
 plugins: cov-7.0.0, anyio-4.12.1
-collected 47 items
+collected 54 items
 
-tests/unit/test_chunker.py ......                                        [ 12%]
-tests/unit/test_cycle_05.py ................                             [ 46%]
-tests/unit/test_domain_models.py ...................                     [ 87%]
+tests/unit/test_chunker.py ......                                        [ 11%]
+tests/unit/test_cycle_05.py .......................                      [ 53%]
+tests/unit/test_domain_models.py ...................                     [ 88%]
 tests/unit/test_vad.py ......                                            [100%]
 
+=============================== warnings summary ===============================
+tests/unit/test_cycle_05.py::test_diarizer_initialization
+  /app/.venv/lib/python3.12/site-packages/pyannote/audio/core/io.py:47: UserWarning:
+  torchcodec is not installed correctly so built-in audio decoding will fail. Solutions are:
+  * use audio preloaded in-memory as a {'waveform': (channel, time) torch.Tensor, 'sample_rate': int} dictionary;
+  * fix torchcodec installation. Error message was:
+
+  Could not load libtorchcodec. Likely causes:
+            1. FFmpeg is not properly installed in your environment. We support
+               versions 4, 5, 6, 7, and 8, and we attempt to load libtorchcodec
+               for each of those versions. Errors for versions not installed on
+               your system are expected; only the error for your installed FFmpeg
+               version is relevant. On Windows, ensure you've installed the
+               "full-shared" version which ships DLLs.
+            2. The PyTorch version (2.10.0+cu128) is not compatible with
+               this version of TorchCodec. Refer to the version compatibility
+               table:
+               https://github.com/pytorch/torchcodec?tab=readme-ov-file#installing-torchcodec.
+            3. Another runtime dependency; see exceptions below.
+
+          The following exceptions were raised as we tried to load libtorchcodec:
+
+  [start of libtorchcodec loading traceback]
+  FFmpeg version 8:
+  Traceback (most recent call last):
+    File "/app/.venv/lib/python3.12/site-packages/torch/_ops.py", line 1442, in load_library
+      ctypes.CDLL(path)
+    File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/ctypes/__init__.py", line 379, in __init__
+      self._handle = _dlopen(self._name, mode)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^
+  OSError: libavutil.so.60: cannot open shared object file: No such file or directory
+
+  The above exception was the direct cause of the following exception:
+
+  Traceback (most recent call last):
+    File "/app/.venv/lib/python3.12/site-packages/torchcodec/_core/ops.py", line 57, in load_torchcodec_shared_libraries
+      torch.ops.load_library(core_library_path)
+    File "/app/.venv/lib/python3.12/site-packages/torch/_ops.py", line 1444, in load_library
+      raise OSError(f"Could not load this library: {path}") from e
+  OSError: Could not load this library: /app/.venv/lib/python3.12/site-packages/torchcodec/libtorchcodec_core8.so
+
+  FFmpeg version 7:
+  Traceback (most recent call last):
+    File "/app/.venv/lib/python3.12/site-packages/torch/_ops.py", line 1442, in load_library
+      ctypes.CDLL(path)
+    File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/ctypes/__init__.py", line 379, in __init__
+      self._handle = _dlopen(self._name, mode)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^
+  OSError: libavutil.so.59: cannot open shared object file: No such file or directory
+
+  The above exception was the direct cause of the following exception:
+
+  Traceback (most recent call last):
+    File "/app/.venv/lib/python3.12/site-packages/torchcodec/_core/ops.py", line 57, in load_torchcodec_shared_libraries
+      torch.ops.load_library(core_library_path)
+    File "/app/.venv/lib/python3.12/site-packages/torch/_ops.py", line 1444, in load_library
+      raise OSError(f"Could not load this library: {path}") from e
+  OSError: Could not load this library: /app/.venv/lib/python3.12/site-packages/torchcodec/libtorchcodec_core7.so
+
+  FFmpeg version 6:
+  Traceback (most recent call last):
+    File "/app/.venv/lib/python3.12/site-packages/torch/_ops.py", line 1442, in load_library
+      ctypes.CDLL(path)
+    File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/ctypes/__init__.py", line 379, in __init__
+      self._handle = _dlopen(self._name, mode)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^
+  OSError: libavdevice.so.60: cannot open shared object file: No such file or directory
+
+  The above exception was the direct cause of the following exception:
+
+  Traceback (most recent call last):
+    File "/app/.venv/lib/python3.12/site-packages/torchcodec/_core/ops.py", line 57, in load_torchcodec_shared_libraries
+      torch.ops.load_library(core_library_path)
+    File "/app/.venv/lib/python3.12/site-packages/torch/_ops.py", line 1444, in load_library
+      raise OSError(f"Could not load this library: {path}") from e
+  OSError: Could not load this library: /app/.venv/lib/python3.12/site-packages/torchcodec/libtorchcodec_core6.so
+
+  FFmpeg version 5:
+  Traceback (most recent call last):
+    File "/app/.venv/lib/python3.12/site-packages/torch/_ops.py", line 1442, in load_library
+      ctypes.CDLL(path)
+    File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/ctypes/__init__.py", line 379, in __init__
+      self._handle = _dlopen(self._name, mode)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^
+  OSError: libavutil.so.57: cannot open shared object file: No such file or directory
+
+  The above exception was the direct cause of the following exception:
+
+  Traceback (most recent call last):
+    File "/app/.venv/lib/python3.12/site-packages/torchcodec/_core/ops.py", line 57, in load_torchcodec_shared_libraries
+      torch.ops.load_library(core_library_path)
+    File "/app/.venv/lib/python3.12/site-packages/torch/_ops.py", line 1444, in load_library
+      raise OSError(f"Could not load this library: {path}") from e
+  OSError: Could not load this library: /app/.venv/lib/python3.12/site-packages/torchcodec/libtorchcodec_core5.so
+
+  FFmpeg version 4:
+  Traceback (most recent call last):
+    File "/app/.venv/lib/python3.12/site-packages/torch/_ops.py", line 1442, in load_library
+      ctypes.CDLL(path)
+    File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/ctypes/__init__.py", line 379, in __init__
+      self._handle = _dlopen(self._name, mode)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^
+  OSError: libavutil.so.56: cannot open shared object file: No such file or directory
+
+  The above exception was the direct cause of the following exception:
+
+  Traceback (most recent call last):
+    File "/app/.venv/lib/python3.12/site-packages/torchcodec/_core/ops.py", line 57, in load_torchcodec_shared_libraries
+      torch.ops.load_library(core_library_path)
+    File "/app/.venv/lib/python3.12/site-packages/torch/_ops.py", line 1444, in load_library
+      raise OSError(f"Could not load this library: {path}") from e
+  OSError: Could not load this library: /app/.venv/lib/python3.12/site-packages/torchcodec/libtorchcodec_core4.so
+  [end of libtorchcodec loading traceback].
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
 ================================ tests coverage ================================
 _______________ coverage: platform linux, python 3.12.13-final-0 _______________
 
@@ -23,8 +139,9 @@ src/domain_models/transcription.py              38      0   100%
 src/meetingnoter/__init__.py                     0      0   100%
 src/meetingnoter/ingestion/drive_client.py      46      3    93%   53, 59, 65
 src/meetingnoter/processing/chunker.py          58      5    91%   25-26, 41, 75-76
+src/meetingnoter/processing/diarizer.py         49      0   100%
 src/meetingnoter/processing/transcriber.py      66      0   100%
 src/meetingnoter/processing/vad.py             184     58    68%   14-16, 49-50, 68-69, 86-87, 102, 108-109, 125-132, 142-148, 172-173, 189, 196-197, 207-216, 223, 227-229, 232-233, 236-237, 240-241, 244-245, 265-266, 269-273, 279, 283-284
 --------------------------------------------------------------------------
-TOTAL                                          494     81    84%
-============================== 47 passed in 8.93s ==============================
+TOTAL                                          543     81    85%
+======================== 54 passed, 1 warning in 18.82s ========================

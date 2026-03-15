@@ -173,3 +173,68 @@ def test_ffmpeg_chunker_integration() -> None:
         assert Path(chunks[0].chunk_filepath).stat().st_size > 0
     finally:
         Path(tf.name).unlink(missing_ok=True)
+
+
+def test_pipeline_diarization_integration() -> None:
+    # Test integration between transcription and diarization specifically
+    import sys
+    from pathlib import Path
+
+    root_dir = str(Path(__file__).parent.parent.parent)
+    if root_dir not in sys.path:
+        sys.path.insert(0, root_dir)
+
+    from main import run_pipeline
+
+    class MultiSpeakerDiarizer(Diarizer):
+        def diarize(self, chunk: AudioChunk) -> list[SpeakerLabel]:
+            return [
+                SpeakerLabel(
+                    start_time=chunk.start_time,
+                    end_time=chunk.start_time + 0.5,
+                    speaker_id="SPEAKER_00",
+                ),
+                SpeakerLabel(
+                    start_time=chunk.start_time + 0.5,
+                    end_time=chunk.start_time + 1.0,
+                    speaker_id="SPEAKER_01",
+                )
+            ]
+
+    class MultiSpeechTranscriber(Transcriber):
+        def transcribe(
+            self, chunk: AudioChunk, speech_segments: list[SpeechSegment]
+        ) -> list[TranscriptionSegment]:
+            return [
+                TranscriptionSegment(
+                    start_time=chunk.start_time,
+                    end_time=chunk.start_time + 0.5,
+                    text="Hello",
+                ),
+                TranscriptionSegment(
+                    start_time=chunk.start_time + 0.5,
+                    end_time=chunk.start_time + 1.0,
+                    text="World",
+                )
+            ]
+
+    storage = SyntheticDatasetStorageClient()
+    splitter = SyntheticDatasetAudioSplitter()
+    detector = SyntheticDatasetSpeechDetector()
+    transcriber = MultiSpeechTranscriber()
+    diarizer = MultiSpeakerDiarizer()
+
+    transcript: DiarizedTranscript = run_pipeline(
+        storage=storage,
+        splitter=splitter,
+        detector=detector,
+        transcriber=transcriber,
+        diarizer=diarizer,
+        file_id="test_id",
+    )
+
+    assert len(transcript.segments) == 2
+    assert transcript.segments[0].speaker_id == "SPEAKER_00"
+    assert transcript.segments[0].text == "Hello"
+    assert transcript.segments[1].speaker_id == "SPEAKER_01"
+    assert transcript.segments[1].text == "World"

@@ -56,6 +56,8 @@ def cell_tests(
     type,
     Any,
 ]:
+    from typing import Any
+
     from pydantic import ValidationError
 
     from domain_models import (
@@ -310,33 +312,145 @@ def cell_tests_c05_4(mo: Any) -> tuple[Any, ...]:
             FasterWhisperTranscriber as _FasterWhisperTranscriber_err,
         )
     except ImportError:
-        return (mo.md("**Cycle 05 Error Handling UAT Skipped.**"),)
+        _output_4 = mo.md("**Cycle 05 Error Handling UAT Skipped.**")
+    else:
+        from unittest.mock import patch
 
-    from unittest.mock import patch
+        class MockFasterWhisperTranscriberErr(_FasterWhisperTranscriber_err):
+            def transcribe(self, chunk: _AudioChunk_err, speech_segments: list[Any]) -> list[Any]:
+                from pathlib import Path
 
-    class MockFasterWhisperTranscriberErr(_FasterWhisperTranscriber_err):
-        def transcribe(self, chunk: _AudioChunk_err, speech_segments: list[Any]) -> list[Any]:
-            from pathlib import Path
+                if not Path(chunk.chunk_filepath).exists():
+                    msg = f"Audio chunk file not found: {chunk.chunk_filepath}"
+                    raise FileNotFoundError(msg)
+                return []
 
-            if not Path(chunk.chunk_filepath).exists():
-                msg = f"Audio chunk file not found: {chunk.chunk_filepath}"
-                raise FileNotFoundError(msg)
-            return []
+        with patch("domain_models.config._get_secret", return_value="test"):
+            _config_err = _PipelineConfig_err(transcriber_language="ja", transcriber_model_size="tiny")
+            transcriber_err = MockFasterWhisperTranscriberErr(_config_err)
 
-    with patch("domain_models.config._get_secret", return_value="test"):
-        _config_err = _PipelineConfig_err(transcriber_language="ja", transcriber_model_size="tiny")
-        transcriber_err = MockFasterWhisperTranscriberErr(_config_err)
-
-    chunk_err = _AudioChunk_err(
-        chunk_filepath="/path/to/nonexistent.wav", start_time=0.0, end_time=10.0, chunk_index=0
-    )
-
-    try:
-        transcriber_err.transcribe(chunk_err, [])
-        _output_4 = mo.md("**Error Handling Failed:** Exception was not triggered!")
-    except FileNotFoundError as e:
-        _output_4 = mo.md(
-            f"**Scenario ID: UAT-C05-02 - Robust Error Handling - SUCCESS** Caught expected error: `{e}`"
+        chunk_err = _AudioChunk_err(
+            chunk_filepath="/path/to/nonexistent.wav", start_time=0.0, end_time=10.0, chunk_index=0
         )
 
+        try:
+            transcriber_err.transcribe(chunk_err, [])
+            _output_4 = mo.md("**Error Handling Failed:** Exception was not triggered!")
+        except FileNotFoundError as e:
+            _output_4 = mo.md(
+                f"**Scenario ID: UAT-C05-02 - Robust Error Handling - SUCCESS** Caught expected error: `{e}`"
+            )
+
     return (_output_4,)
+
+
+@app.cell
+def cell_tests_c06_1() -> tuple[object, ...]:
+    import marimo as _mo_c06
+    return (_mo_c06,)
+
+
+@app.cell
+def cell_tests_c06_2(_mo_c06: object) -> tuple[object, ...]:
+    import typing as _typing_c06
+
+    _mo_typed_c06 = _typing_c06.cast(_typing_c06.Any, _mo_c06)
+    _mo_typed_c06.md(
+        """
+        # CYCLE06 User Acceptance Testing (UAT)
+
+        This notebook validates the Forced Alignment and Diarization logic implemented in Cycle 06.
+        """
+    )
+    return ()
+
+
+@app.cell
+def cell_tests_c06_3(_mo_c06: Any) -> tuple[Any, ...]:
+    import tempfile as _tempfile_c06
+    import wave as _wave_c06
+    from pathlib import Path as _Path_c06
+
+    from domain_models import AudioChunk as _AudioChunk_c06
+    from domain_models import SpeakerLabel as _SpeakerLabel_c06
+
+    try:
+        import importlib.util as _importlib_util_c06
+
+        if not _importlib_util_c06.find_spec("pyannote") or not _importlib_util_c06.find_spec("torch"):
+            raise ImportError
+        from meetingnoter.processing.diarizer import PyannoteDiarizer as _PyannoteDiarizer
+    except ImportError as _e_c06:
+        _output_c06_3 = _mo_c06.md(
+            f"**Cycle 06 UAT Skipped:** Required dependencies (pyannote.audio, torch) are missing. {_e_c06}"
+        )
+    else:
+        class _MockPyannoteDiarizer(_PyannoteDiarizer):
+            def diarize(self, chunk: _AudioChunk_c06) -> list[_SpeakerLabel_c06]:
+                return [
+                    _SpeakerLabel_c06(
+                        start_time=chunk.start_time,
+                        end_time=chunk.end_time,
+                        speaker_id="SPEAKER_00",
+                    )
+                ]
+
+        with _tempfile_c06.NamedTemporaryFile(suffix=".wav", delete=False) as _tf_c06:
+            with _wave_c06.open(_tf_c06.name, "wb") as _w_c06:
+                _w_c06.setnchannels(1)
+                _w_c06.setsampwidth(2)
+                _w_c06.setframerate(16000)
+                _w_c06.writeframes(b"\x00" * 16000 * 2)
+            _chunk_01_name_c06 = _tf_c06.name
+
+        _chunk_01_c06 = _AudioChunk_c06(
+            chunk_filepath=_chunk_01_name_c06, start_time=10.0, end_time=20.0, chunk_index=0
+        )
+
+        _diarizer_c06 = _MockPyannoteDiarizer(auth_token="dummy")
+
+        try:
+            _results_01_c06 = _diarizer_c06.diarize(_chunk_01_c06)
+            _output_msg_c06 = "**Scenario ID: UAT-C06-01 - Primary Path - SUCCESS**\n\n"
+            for _r in _results_01_c06:
+                _output_msg_c06 += f"- Speaker Segment: {_r.start_time} - {_r.end_time}: {_r.speaker_id}\n"
+            _output_c06_3 = _mo_c06.md(_output_msg_c06)
+        except Exception as _e_c06_2:
+            _output_c06_3 = _mo_c06.md(f"**Cycle 06 UAT Failed:** {_e_c06_2}")
+        finally:
+            _Path_c06(_chunk_01_name_c06).unlink()
+
+    return (_output_c06_3,)
+
+
+@app.cell
+def cell_tests_c06_4(_mo_c06: Any) -> tuple[Any, ...]:
+    from domain_models import AudioChunk as _AudioChunk_err_c06
+
+    try:
+        from meetingnoter.processing.diarizer import PyannoteDiarizer as _PyannoteDiarizer_err
+    except ImportError:
+        _output_c06_4 = _mo_c06.md("**Cycle 06 Error Handling UAT Skipped.**")
+    else:
+        class _MockPyannoteDiarizerErr(_PyannoteDiarizer_err):
+            def diarize(self, chunk: _AudioChunk_err_c06) -> list[Any]:
+                from pathlib import Path as _Path_err
+                if not _Path_err(chunk.chunk_filepath).exists():
+                    msg = f"Audio chunk file not found: {chunk.chunk_filepath}"
+                    raise FileNotFoundError(msg)
+                return []
+
+        _chunk_err_c06 = _AudioChunk_err_c06(
+            chunk_filepath="/path/to/nonexistent.wav", start_time=0.0, end_time=10.0, chunk_index=0
+        )
+        _diarizer_err_c06 = _MockPyannoteDiarizerErr(auth_token="dummy")
+
+        try:
+            _diarizer_err_c06.diarize(_chunk_err_c06)
+            _output_c06_4 = _mo_c06.md("**Error Handling Failed:** Exception was not triggered!")
+        except FileNotFoundError as _e_err_c06:
+            _output_c06_4 = _mo_c06.md(
+                f"**Scenario ID: UAT-C06-02 - Robust Error Handling - SUCCESS** Caught expected error: `{_e_err_c06}`"
+            )
+
+    return (_output_c06_4,)

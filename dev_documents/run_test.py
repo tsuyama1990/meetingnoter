@@ -1,6 +1,7 @@
+import os
 import subprocess
 from pathlib import Path
-import os
+
 p = Path('dev_documents')
 p.mkdir(parents=True, exist_ok=True)
 env = os.environ.copy()
