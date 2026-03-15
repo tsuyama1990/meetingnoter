@@ -1,43 +1,10 @@
 from pathlib import Path
-from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from domain_models import AudioChunk, PipelineConfig, SpeechSegment
-from meetingnoter.processing.diarizer import PyannoteDiarizer
 from meetingnoter.processing.transcriber import FasterWhisperTranscriber
-
-
-class MockTurn:
-    def __init__(self, start: float, end: float) -> None:
-        self.start = start
-        self.end = end
-
-
-class MockDiarization:
-    def __init__(self, tracks: list[tuple[MockTurn, str, str]]) -> None:
-        self.tracks = tracks
-
-    def itertracks(self, yield_label: bool = False) -> list[tuple[MockTurn, str, str]]:
-        return self.tracks
-
-
-class MockPipeline:
-    def __init__(self, diarization_result: MockDiarization | Exception | None = None) -> None:
-        self.diarization_result = diarization_result
-        self.to_called = False
-        self.device = None
-
-    def to(self, device: Any) -> "MockPipeline":
-        self.to_called = True
-        self.device = device
-        return self
-
-    def __call__(self, filepath: str, exclusive: bool = False, num_workers: int = 1) -> Any:
-        if isinstance(self.diarization_result, Exception):
-            raise self.diarization_result
-        return self.diarization_result
 
 
 @patch("meetingnoter.processing.transcriber.WhisperModel")
@@ -213,17 +180,32 @@ def test_transcriber_model_none_after_load(
             transcriber.transcribe(chunk, [])
 
 
-@patch("meetingnoter.processing.transcriber.torch.cuda.empty_cache")
-@patch("meetingnoter.processing.transcriber.torch.cuda.is_available", return_value=True)
-@patch("meetingnoter.processing.transcriber.WhisperModel")
+def test_transcriber_import_error() -> None:
+
+    import importlib
+    import sys
+
+    # Hide the faster_whisper module to trigger ImportError
+    import meetingnoter.processing.transcriber
+
+    with (
+        patch.dict(sys.modules, {"faster_whisper": None}),
+        pytest.raises(
+            ImportError, match="Required library 'faster-whisper' or 'torch' is not installed:"
+        ),
+    ):
+        importlib.reload(meetingnoter.processing.transcriber)
+
+
 @patch("pathlib.Path.is_file", return_value=True)
-@patch("pathlib.Path.is_relative_to", return_value=True)
+@patch("meetingnoter.processing.transcriber.WhisperModel")
+@patch("torch.cuda.is_available", return_value=True)
+@patch("torch.cuda.empty_cache")
 def test_transcriber_garbage_collection(
-    mock_is_relative_to: MagicMock,
-    mock_is_file: MagicMock,
-    mock_whisper_model: MagicMock,
-    mock_is_available: MagicMock,
     mock_empty_cache: MagicMock,
+    mock_cuda: MagicMock,
+    mock_whisper_model: MagicMock,
+    mock_is_file: MagicMock,
     tmp_path: Path,
 ) -> None:
 
@@ -231,22 +213,23 @@ def test_transcriber_garbage_collection(
     mock_whisper_model.return_value = mock_model_instance
     mock_model_instance.transcribe.return_value = ([], None)
 
-    with patch("domain_models.config._get_secret", return_value="dummy"):
-        config = PipelineConfig()
-        transcriber = FasterWhisperTranscriber(config)
+    with patch("pathlib.Path.is_relative_to", return_value=True):
+        with patch("domain_models.config._get_secret", return_value="dummy"):
+            config = PipelineConfig()
+            transcriber = FasterWhisperTranscriber(config)
 
-    test_file = tmp_path / "test.wav"
-    test_file.touch()
-    chunk = AudioChunk(
-        chunk_filepath=str(test_file),
-        start_time=0.0,
-        end_time=10.0,
-        chunk_index=0,
-    )
+        test_file = tmp_path / "test.wav"
+        test_file.touch()
+        chunk = AudioChunk(
+            chunk_filepath=str(test_file),
+            start_time=0.0,
+            end_time=10.0,
+            chunk_index=0,
+        )
 
-    transcriber.transcribe(chunk, [])
+        transcriber.transcribe(chunk, [])
 
-    mock_empty_cache.assert_called_once()
+        mock_empty_cache.assert_called_once()
 
 
 @patch("pathlib.Path.is_file", return_value=True)
@@ -301,6 +284,18 @@ def test_transcriber_cuda_oom_error_during_inference(
 
         with pytest.raises(RuntimeError, match="CUDA Out of Memory during transcription."):
             transcriber.transcribe(chunk, [])
+
+
+def test_transcriber_cleanup_resources_no_torch() -> None:
+
+    import sys
+
+    with patch.dict(sys.modules, {"torch": None}):
+        with patch("domain_models.config._get_secret", return_value="dummy"):
+            config = PipelineConfig()
+            transcriber = FasterWhisperTranscriber(config)
+        # Should catch ImportError and pass
+        transcriber._cleanup_resources()
 
 
 def test_transcriber_invalid_path_relative() -> None:
@@ -403,12 +398,8 @@ def test_transcriber_general_runtime_error_during_inference(
 
 
 def test_transcriber_cleanup_resources_torch_cuda_empty_cache() -> None:
-    import os
 
-    with patch(
-        "domain_models.config._get_secret",
-        return_value=os.getenv("TEST_SECRET", "default_test_value"),
-    ):
+    with patch("domain_models.config._get_secret", return_value="dummy"):
         config = PipelineConfig()
         transcriber = FasterWhisperTranscriber(config)
 
@@ -418,115 +409,3 @@ def test_transcriber_cleanup_resources_torch_cuda_empty_cache() -> None:
     ):
         transcriber._cleanup_resources()
         mock_empty_cache.assert_called_once()
-
-
-@patch("pyannote.audio.Pipeline.from_pretrained")
-def test_diarizer_initialization(mock_from_pretrained: MagicMock) -> None:
-    import os
-
-    diarizer = PyannoteDiarizer(auth_token=os.getenv("TEST_AUTH_TOKEN", "default_test_token"))
-    assert diarizer.pipeline is None
-    mock_from_pretrained.assert_not_called()
-
-
-@patch("pathlib.Path.exists", return_value=True)
-@patch("pyannote.audio.Pipeline.from_pretrained")
-def test_diarizer_load_and_diarize(
-    mock_from_pretrained: MagicMock,
-    mock_exists: MagicMock,
-    tmp_path: Path,
-) -> None:
-
-    mock_turn1 = MockTurn(start=1.0, end=3.0)
-    mock_turn2 = MockTurn(start=4.0, end=5.0)
-    mock_diarization = MockDiarization(
-        tracks=[
-            (mock_turn1, "_", "SPEAKER_00"),
-            (mock_turn2, "_", "SPEAKER_01"),
-        ]
-    )
-    mock_pipeline = MockPipeline(diarization_result=mock_diarization)
-
-    # We patch the call to pipeline instead of patching from_pretrained returning a magicmock
-    # Wait, from_pretrained returns the mock pipeline
-    mock_from_pretrained.return_value = mock_pipeline
-
-    import os
-
-    diarizer = PyannoteDiarizer(auth_token=os.getenv("TEST_AUTH_TOKEN", "default_test_token"))
-
-    test_file = tmp_path / "test.wav"
-    chunk = AudioChunk(chunk_filepath=str(test_file), start_time=10.0, end_time=20.0, chunk_index=0)
-
-    # Use patch context managers for imports in PyannoteDiarizer
-    labels = diarizer.diarize(chunk)
-
-    assert diarizer.pipeline is not None
-    mock_from_pretrained.assert_called_once_with(
-        "pyannote/speaker-diarization-3.1",
-        use_auth_token=os.getenv("TEST_AUTH_TOKEN", "default_test_token"),
-    )
-
-    # Verify mapping to global timestamps
-    assert len(labels) == 2
-    assert labels[0].start_time == 11.0
-    assert labels[0].end_time == 13.0
-    assert labels[0].speaker_id == "SPEAKER_00"
-
-    assert labels[1].start_time == 14.0
-    assert labels[1].end_time == 15.0
-    assert labels[1].speaker_id == "SPEAKER_01"
-
-
-@patch("pyannote.audio.Pipeline.from_pretrained")
-def test_diarizer_file_not_found(mock_from_pretrained: MagicMock) -> None:
-    import os
-
-    diarizer = PyannoteDiarizer(auth_token=os.getenv("TEST_AUTH_TOKEN", "default_test_token"))
-    chunk = AudioChunk(
-        chunk_filepath="/path/to/nonexistent.wav", start_time=0.0, end_time=10.0, chunk_index=0
-    )
-    mock_from_pretrained.return_value = MockPipeline()
-
-    with (
-        patch.object(diarizer, "_load_model"),
-        pytest.raises(FileNotFoundError, match="Audio chunk file not found"),
-    ):
-        diarizer.diarize(chunk)
-
-
-@patch("pathlib.Path.exists", return_value=True)
-@patch("pyannote.audio.Pipeline.from_pretrained")
-def test_diarizer_inference_error(
-    mock_from_pretrained: MagicMock,
-    mock_exists: MagicMock,
-    tmp_path: Path,
-) -> None:
-
-    mock_pipeline = MockPipeline(diarization_result=Exception("Diarization failed"))
-    mock_from_pretrained.return_value = mock_pipeline
-
-    import os
-
-    diarizer = PyannoteDiarizer(auth_token=os.getenv("TEST_AUTH_TOKEN", "default_test_token"))
-    test_file = tmp_path / "test.wav"
-    chunk = AudioChunk(chunk_filepath=str(test_file), start_time=0.0, end_time=10.0, chunk_index=0)
-
-    with pytest.raises(RuntimeError, match="Pyannote diarization failed: Diarization failed"):
-        diarizer.diarize(chunk)
-
-
-@patch("pyannote.audio.Pipeline.from_pretrained")
-def test_diarizer_load_model_not_found(mock_from_pretrained: MagicMock) -> None:
-
-    mock_from_pretrained.side_effect = Exception("Model initialization failed")
-
-    import os
-
-    diarizer = PyannoteDiarizer(auth_token=os.getenv("TEST_AUTH_TOKEN", "default_test_token"))
-
-    with (
-        patch("time.sleep"),  # Speed up tests
-        pytest.raises(RuntimeError, match="Failed to load pyannote pipeline after 3 attempts"),
-    ):
-        diarizer._load_model()

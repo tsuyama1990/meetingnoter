@@ -49,6 +49,7 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["S101", "S105", "S106", "S108"]  # Allow assert and dummy tokens in tests
+"dev_documents/**/*.py" = ["S603", "S607", "F841"]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 10  # Exceeding this prompts function splitting (prevent AI long functions)

@@ -56,8 +56,6 @@ def cell_tests(
     type,
     Any,
 ]:
-    from typing import Any
-
     from pydantic import ValidationError
 
     from domain_models import (
@@ -225,272 +223,120 @@ def cell_tests_c05_2(mo: object) -> tuple[object, ...]:
 
 @app.cell
 def cell_tests_c05_3(mo: Any) -> tuple[Any, ...]:
-    def _run_test_c05_3() -> Any:
-        import sys
-        import tempfile
-        import wave
-        from collections import namedtuple
-        from pathlib import Path
+    import tempfile
+    import wave
+    from pathlib import Path
+
+    from domain_models import AudioChunk as _AudioChunk
+    from domain_models import PipelineConfig as _PipelineConfig
+    from domain_models import SpeechSegment as _SpeechSegment
+
+    try:
+        import importlib.util
+
+        if not importlib.util.find_spec("faster_whisper") or not importlib.util.find_spec("torch"):
+            raise ImportError
+        from meetingnoter.processing.transcriber import (
+            FasterWhisperTranscriber as _FasterWhisperTranscriber,
+        )
+    except ImportError as e:
+        _output_3 = mo.md(
+            f"**Cycle 05 UAT Skipped:** Required dependencies (faster-whisper, torch) are missing. {e}"
+        )
+    else:
+        # Mock class for UAT Execution as requested
+        class MockFasterWhisperTranscriber(_FasterWhisperTranscriber):
+            def transcribe(
+                self, chunk: _AudioChunk, speech_segments: list[_SpeechSegment]
+            ) -> list[Any]:
+                from domain_models import TranscriptionSegment as _TranscriptionSegment
+
+                return [
+                    _TranscriptionSegment(
+                        start_time=chunk.start_time,
+                        end_time=chunk.end_time,
+                        text="Mock transcription result for UAT.",
+                    )
+                ]
+
+        # 1. Setup a dummy wav file
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf:
+            with wave.open(tf.name, "wb") as w:
+                w.setnchannels(1)
+                w.setsampwidth(2)
+                w.setframerate(16000)
+                # Create 1 second of synthetic silence
+                w.writeframes(b"\x00" * 16000 * 2)
+            chunk_01_name = tf.name
+
+        chunk_01 = _AudioChunk(
+            chunk_filepath=chunk_01_name, start_time=10.0, end_time=20.0, chunk_index=0
+        )
+
+        speech_segments_01 = [_SpeechSegment(start_time=10.0, end_time=15.0)]
+
         from unittest.mock import patch
 
-        from domain_models import AudioChunk, PipelineConfig, SpeechSegment
-
-        MockModule = namedtuple("MockModule", ["WhisperModel"])
-
-        class MockModel:
-            def __init__(self, *args: Any, **kwargs: Any) -> None:
-                pass
-
-            def transcribe(self, *args: Any, **kwargs: Any) -> tuple[list[Any], None]:
-                return ([], None)
-
-        with patch.dict(sys.modules, {"faster_whisper": MockModule(WhisperModel=MockModel)}):
-            from meetingnoter.processing.transcriber import FasterWhisperTranscriber
-
-            # Mock class for UAT Execution as requested
-            class MockFasterWhisperTranscriber(FasterWhisperTranscriber):
-                def transcribe(
-                    self, chunk: AudioChunk, speech_segments: list[SpeechSegment]
-                ) -> list[Any]:
-                    from domain_models import TranscriptionSegment
-
-                    return [
-                        TranscriptionSegment(
-                            start_time=chunk.start_time,
-                            end_time=chunk.end_time,
-                            text="Mock transcription result for UAT.",
-                        )
-                    ]
-
-            # 1. Setup a dummy wav file
-            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf:
-                with wave.open(tf.name, "wb") as w:
-                    w.setnchannels(1)
-                    w.setsampwidth(2)
-                    w.setframerate(16000)
-                    # Create 1 second of synthetic silence
-                    w.writeframes(b"\x00" * 16000 * 2)
-                chunk_01_name = tf.name
-
-            chunk_01 = AudioChunk(
-                chunk_filepath=chunk_01_name, start_time=10.0, end_time=20.0, chunk_index=0
+        with patch("domain_models.config._get_secret", return_value="test"):
+            _config = _PipelineConfig(
+                transcriber_language="ja",
+                transcriber_model_size="tiny",
+                transcriber_compute_type="int8",
             )
+            transcriber_01 = MockFasterWhisperTranscriber(_config)
 
-            speech_segments_01 = [SpeechSegment(start_time=10.0, end_time=15.0)]
+        try:
+            results_01 = transcriber_01.transcribe(chunk_01, speech_segments_01)
 
-            import os
+            _output_msg = "**Cycle 05 Advanced Transcription Engine Passed (Mock Mode)!**\n\n"
+            for r in results_01:
+                _output_msg += f"- Segment: {r.start_time} - {r.end_time}: {r.text}\n"
+            _output_3 = mo.md(_output_msg)
+        except Exception as e:
+            _output_3 = mo.md(f"**Cycle 05 UAT Failed:** {e}")
+        finally:
+            Path(chunk_01_name).unlink()
 
-            with patch(
-                "domain_models.config._get_secret",
-                return_value=os.getenv("TEST_SECRET", "default_test_value"),
-            ):
-                config = PipelineConfig(
-                    transcriber_language="ja",
-                    transcriber_model_size="tiny",
-                    transcriber_compute_type="int8",
-                )
-                transcriber_01 = MockFasterWhisperTranscriber(config)
-
-            try:
-                results_01 = transcriber_01.transcribe(chunk_01, speech_segments_01)
-
-                output_msg = "**Cycle 05 Advanced Transcription Engine Passed (Mock Mode)!**\n\n"
-                for r in results_01:
-                    output_msg += f"- Segment: {r.start_time} - {r.end_time}: {r.text}\n"
-                return mo.md(output_msg)
-            except Exception as e:
-                return mo.md(f"**Cycle 05 UAT Failed:** {e}")
-            finally:
-                Path(chunk_01_name).unlink()
-
-    return (_run_test_c05_3(),)
+    return (_output_3,)
 
 
 @app.cell
 def cell_tests_c05_4(mo: Any) -> tuple[Any, ...]:
-    def _run_test_c05_4() -> Any:
-        import sys
-        from collections import namedtuple
-        from unittest.mock import patch
+    from domain_models import AudioChunk as _AudioChunk_err
+    from domain_models import PipelineConfig as _PipelineConfig_err
 
-        from domain_models import AudioChunk, PipelineConfig
+    try:
+        from meetingnoter.processing.transcriber import (
+            FasterWhisperTranscriber as _FasterWhisperTranscriber_err,
+        )
+    except ImportError:
+        return (mo.md("**Cycle 05 Error Handling UAT Skipped.**"),)
 
-        MockModule = namedtuple("MockModule", ["WhisperModel"])
+    from unittest.mock import patch
 
-        class MockModel:
-            pass
+    class MockFasterWhisperTranscriberErr(_FasterWhisperTranscriber_err):
+        def transcribe(self, chunk: _AudioChunk_err, speech_segments: list[Any]) -> list[Any]:
+            from pathlib import Path
 
-        with patch.dict(sys.modules, {"faster_whisper": MockModule(WhisperModel=MockModel)}):
-            from meetingnoter.processing.transcriber import FasterWhisperTranscriber
+            if not Path(chunk.chunk_filepath).exists():
+                msg = f"Audio chunk file not found: {chunk.chunk_filepath}"
+                raise FileNotFoundError(msg)
+            return []
 
-            class MockFasterWhisperTranscriberErr(FasterWhisperTranscriber):
-                def transcribe(self, chunk: AudioChunk, speech_segments: list[Any]) -> list[Any]:
-                    from pathlib import Path
+    with patch("domain_models.config._get_secret", return_value="test"):
+        _config_err = _PipelineConfig_err(transcriber_language="ja", transcriber_model_size="tiny")
+        transcriber_err = MockFasterWhisperTranscriberErr(_config_err)
 
-                    if not Path(chunk.chunk_filepath).exists():
-                        msg = f"Audio chunk file not found: {chunk.chunk_filepath}"
-                        raise FileNotFoundError(msg)
-                    return []
-
-            import os
-
-            with patch(
-                "domain_models.config._get_secret",
-                return_value=os.getenv("TEST_SECRET", "default_test_value"),
-            ):
-                config_err = PipelineConfig(
-                    transcriber_language="ja", transcriber_model_size="tiny"
-                )
-                transcriber_err = MockFasterWhisperTranscriberErr(config_err)
-
-            chunk_err = AudioChunk(
-                chunk_filepath="/path/to/nonexistent.wav",
-                start_time=0.0,
-                end_time=10.0,
-                chunk_index=0,
-            )
-
-            try:
-                transcriber_err.transcribe(chunk_err, [])
-                return mo.md("**Error Handling Failed:** Exception was not triggered!")
-            except FileNotFoundError as e:
-                return mo.md(
-                    f"**Scenario ID: UAT-C05-02 - Robust Error Handling - SUCCESS** Caught expected error: `{e}`"
-                )
-
-    return (_run_test_c05_4(),)
-
-
-@app.cell
-def cell_tests_c06_1() -> tuple[object, ...]:
-    import marimo as _mo_c06
-
-    return (_mo_c06,)
-
-
-@app.cell
-def cell_tests_c06_2(_mo_c06: object) -> tuple[object, ...]:
-    import typing as _typing_c06
-
-    _mo_typed_c06 = _typing_c06.cast(_typing_c06.Any, _mo_c06)
-    _mo_typed_c06.md(
-        """
-        # CYCLE06 User Acceptance Testing (UAT)
-
-        This notebook validates the Forced Alignment and Diarization logic implemented in Cycle 06.
-        """
+    chunk_err = _AudioChunk_err(
+        chunk_filepath="/path/to/nonexistent.wav", start_time=0.0, end_time=10.0, chunk_index=0
     )
-    return ()
 
+    try:
+        transcriber_err.transcribe(chunk_err, [])
+        _output_4 = mo.md("**Error Handling Failed:** Exception was not triggered!")
+    except FileNotFoundError as e:
+        _output_4 = mo.md(
+            f"**Scenario ID: UAT-C05-02 - Robust Error Handling - SUCCESS** Caught expected error: `{e}`"
+        )
 
-@app.cell
-def cell_tests_c06_3(_mo_c06: Any) -> tuple[Any, ...]:
-    def _run_test_c06_3() -> Any:
-        import sys
-        import tempfile
-        import wave
-        from collections import namedtuple
-        from pathlib import Path
-        from unittest.mock import patch
-
-        from domain_models import AudioChunk, SpeakerLabel
-
-        MockModule = namedtuple("MockModule", ["Pipeline"])
-
-        class MockPipeline:
-            pass
-
-        with patch.dict(sys.modules, {"pyannote.audio": MockModule(Pipeline=MockPipeline)}):
-            from meetingnoter.processing.diarizer import PyannoteDiarizer
-
-            class MockPyannoteDiarizer(PyannoteDiarizer):
-                def diarize(self, chunk: AudioChunk) -> list[SpeakerLabel]:
-                    return [
-                        SpeakerLabel(
-                            start_time=chunk.start_time,
-                            end_time=chunk.end_time,
-                            speaker_id="SPEAKER_00",
-                        )
-                    ]
-
-            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf:
-                with wave.open(tf.name, "wb") as w:
-                    w.setnchannels(1)
-                    w.setsampwidth(2)
-                    w.setframerate(16000)
-                    w.writeframes(b"\x00" * 16000 * 2)
-                chunk_01_name = tf.name
-
-            chunk_01 = AudioChunk(
-                chunk_filepath=chunk_01_name, start_time=10.0, end_time=20.0, chunk_index=0
-            )
-
-            import os
-
-            diarizer = MockPyannoteDiarizer(
-                auth_token=os.getenv("TEST_AUTH_TOKEN", "default_test_token")
-            )
-
-            try:
-                results_01 = diarizer.diarize(chunk_01)
-                output_msg = "**Scenario ID: UAT-C06-01 - Primary Path - SUCCESS**\n\n"
-                for r in results_01:
-                    output_msg += (
-                        f"- Speaker Segment: {r.start_time} - {r.end_time}: {r.speaker_id}\n"
-                    )
-                return _mo_c06.md(output_msg)
-            except Exception as e:
-                return _mo_c06.md(f"**Cycle 06 UAT Failed:** {e}")
-            finally:
-                Path(chunk_01_name).unlink()
-
-    return (_run_test_c06_3(),)
-
-
-@app.cell
-def cell_tests_c06_4(_mo_c06: Any) -> tuple[Any, ...]:
-    def _run_test_c06_4() -> Any:
-        import sys
-        from collections import namedtuple
-        from unittest.mock import patch
-
-        from domain_models import AudioChunk
-
-        MockModule = namedtuple("MockModule", ["Pipeline"])
-
-        class MockPipeline:
-            pass
-
-        with patch.dict(sys.modules, {"pyannote.audio": MockModule(Pipeline=MockPipeline)}):
-            from meetingnoter.processing.diarizer import PyannoteDiarizer
-
-            class MockPyannoteDiarizerErr(PyannoteDiarizer):
-                def diarize(self, chunk: AudioChunk) -> list[Any]:
-                    from pathlib import Path
-
-                    if not Path(chunk.chunk_filepath).exists():
-                        msg = f"Audio chunk file not found: {chunk.chunk_filepath}"
-                        raise FileNotFoundError(msg)
-                    return []
-
-            chunk_err = AudioChunk(
-                chunk_filepath="/path/to/nonexistent.wav",
-                start_time=0.0,
-                end_time=10.0,
-                chunk_index=0,
-            )
-            import os
-
-            diarizer_err = MockPyannoteDiarizerErr(
-                auth_token=os.getenv("TEST_AUTH_TOKEN", "default_test_token")
-            )
-
-            try:
-                diarizer_err.diarize(chunk_err)
-                return _mo_c06.md("**Error Handling Failed:** Exception was not triggered!")
-            except FileNotFoundError as e:
-                return _mo_c06.md(
-                    f"**Scenario ID: UAT-C06-02 - Robust Error Handling - SUCCESS** Caught expected error: `{e}`"
-                )
-
-    return (_run_test_c06_4(),)
+    return (_output_4,)

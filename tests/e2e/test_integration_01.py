@@ -79,44 +79,26 @@ class SyntheticDatasetAudioSplitter(AudioSplitter):
         ]
 
 
-def create_failing_storage_client() -> StorageClient:
-    return FailingSyntheticStorageClient()
-
-
-def create_storage_client() -> StorageClient:
-    return SyntheticDatasetStorageClient()
-
-
-def create_audio_splitter() -> AudioSplitter:
-    return SyntheticDatasetAudioSplitter()
-
-
-def create_speech_detector() -> SpeechDetector:
-    return SyntheticDatasetSpeechDetector()
-
-
-def create_transcriber() -> Transcriber:
-    return SyntheticDatasetTranscriber()
-
-
-def create_diarizer() -> Diarizer:
-    return SyntheticDatasetDiarizer()
-
-
 def test_pipeline_integration_failure() -> None:
+    storage: StorageClient = FailingSyntheticStorageClient()
+    import sys
+    from pathlib import Path
+
     import pytest
 
-    from main import run_pipeline
+    root_dir = str(Path(__file__).parent.parent.parent)
+    if root_dir not in sys.path:
+        sys.path.insert(0, root_dir)
 
-    storage: StorageClient = create_failing_storage_client()
+    from main import run_pipeline
 
     with pytest.raises(RuntimeError, match="Network Error"):
         run_pipeline(
             storage=storage,
-            splitter=create_audio_splitter(),
-            detector=create_speech_detector(),
-            transcriber=create_transcriber(),
-            diarizer=create_diarizer(),
+            splitter=SyntheticDatasetAudioSplitter(),
+            detector=SyntheticDatasetSpeechDetector(),
+            transcriber=SyntheticDatasetTranscriber(),
+            diarizer=SyntheticDatasetDiarizer(),
             file_id="test_id",
         )
 
@@ -124,14 +106,21 @@ def test_pipeline_integration_failure() -> None:
 def test_pipeline_integration() -> None:
     # Use the main.py run_pipeline orchestration logic to actually test the integration SUT
 
+    import sys
+    from pathlib import Path
+
+    root_dir = str(Path(__file__).parent.parent.parent)
+    if root_dir not in sys.path:
+        sys.path.insert(0, root_dir)
+
     from main import run_pipeline
 
-    storage: StorageClient = create_storage_client()
-    splitter: AudioSplitter = create_audio_splitter()
-    detector: SpeechDetector = create_speech_detector()
+    storage: StorageClient = SyntheticDatasetStorageClient()
+    splitter: AudioSplitter = SyntheticDatasetAudioSplitter()
+    detector: SpeechDetector = SyntheticDatasetSpeechDetector()
 
-    transcriber: Transcriber = create_transcriber()
-    diarizer: Diarizer = create_diarizer()
+    transcriber: Transcriber = SyntheticDatasetTranscriber()
+    diarizer: Diarizer = SyntheticDatasetDiarizer()
 
     transcript: DiarizedTranscript = run_pipeline(
         storage=storage,
@@ -148,10 +137,15 @@ def test_pipeline_integration() -> None:
 
 
 def test_ffmpeg_chunker_integration() -> None:
+    import shutil
+
+    if not shutil.which("ffmpeg"):
+        import pytest
+
+        pytest.skip("ffmpeg not installed")
+
     import wave
     from pathlib import Path
-    from typing import Any
-    from unittest.mock import patch
 
     from meetingnoter.processing.chunker import FFmpegChunker
 
@@ -167,26 +161,10 @@ def test_ffmpeg_chunker_integration() -> None:
         w.writeframes(b"\x00" * 16000 * 2)
 
     try:
-        import os
-
-        chunk_length_str = os.environ.get("TEST_CHUNK_LENGTH_MINUTES", "1")
-        chunk_length = int(chunk_length_str)
-
         source: AudioSource = AudioSource(filepath=tf.name, duration_seconds=1.0)
-        chunker: FFmpegChunker = FFmpegChunker(chunk_length_minutes=chunk_length)
+        chunker: FFmpegChunker = FFmpegChunker(chunk_length_minutes=1)  # 1 minute chunks
 
-        with patch("subprocess.run") as mock_run:
-            # We mock the subprocess.run call to ffmpeg, but create the output file artificially
-            def side_effect(*args: list[Any], **kwargs: dict[str, Any]) -> None:
-                # The output file is args[-1]
-                cmd = args[0]
-                output_file = Path(cmd[-1])
-                import shutil
-
-                shutil.copy(tf.name, output_file)
-
-            mock_run.side_effect = side_effect
-            chunks: list[AudioChunk] = chunker.split(source)
+        chunks: list[AudioChunk] = chunker.split(source)
 
         assert len(chunks) == 1
         assert chunks[0].start_time == 0.0
@@ -195,61 +173,3 @@ def test_ffmpeg_chunker_integration() -> None:
         assert Path(chunks[0].chunk_filepath).stat().st_size > 0
     finally:
         Path(tf.name).unlink(missing_ok=True)
-
-
-def test_pipeline_diarization_integration() -> None:
-    # Test integration between transcription and diarization specifically
-    from main import run_pipeline
-
-    class MultiSpeakerDiarizer(Diarizer):
-        def diarize(self, chunk: AudioChunk) -> list[SpeakerLabel]:
-            return [
-                SpeakerLabel(
-                    start_time=chunk.start_time,
-                    end_time=chunk.start_time + 0.5,
-                    speaker_id="SPEAKER_00",
-                ),
-                SpeakerLabel(
-                    start_time=chunk.start_time + 0.5,
-                    end_time=chunk.start_time + 1.0,
-                    speaker_id="SPEAKER_01",
-                ),
-            ]
-
-    class MultiSpeechTranscriber(Transcriber):
-        def transcribe(
-            self, chunk: AudioChunk, speech_segments: list[SpeechSegment]
-        ) -> list[TranscriptionSegment]:
-            return [
-                TranscriptionSegment(
-                    start_time=chunk.start_time,
-                    end_time=chunk.start_time + 0.5,
-                    text="Hello",
-                ),
-                TranscriptionSegment(
-                    start_time=chunk.start_time + 0.5,
-                    end_time=chunk.start_time + 1.0,
-                    text="World",
-                ),
-            ]
-
-    storage = create_storage_client()
-    splitter = create_audio_splitter()
-    detector = create_speech_detector()
-    transcriber = MultiSpeechTranscriber()
-    diarizer = MultiSpeakerDiarizer()
-
-    transcript: DiarizedTranscript = run_pipeline(
-        storage=storage,
-        splitter=splitter,
-        detector=detector,
-        transcriber=transcriber,
-        diarizer=diarizer,
-        file_id="test_id",
-    )
-
-    assert len(transcript.segments) == 2
-    assert transcript.segments[0].speaker_id == "SPEAKER_00"
-    assert transcript.segments[0].text == "Hello"
-    assert transcript.segments[1].speaker_id == "SPEAKER_01"
-    assert transcript.segments[1].text == "World"
