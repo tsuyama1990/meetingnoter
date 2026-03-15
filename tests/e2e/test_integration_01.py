@@ -92,6 +92,7 @@ def test_pipeline_integration_failure() -> None:
 
     from main import run_pipeline
     from meetingnoter import TranscriptMerger
+
     with pytest.raises(RuntimeError, match="Network Error"):
         run_pipeline(
             storage=storage,
@@ -121,6 +122,7 @@ def test_pipeline_integration() -> None:
     detector: SpeechDetector = SyntheticDatasetSpeechDetector()
 
     from meetingnoter import TranscriptMerger
+
     transcriber: Transcriber = SyntheticDatasetTranscriber()
     diarizer: Diarizer = SyntheticDatasetDiarizer()
     aggregator: TranscriptMerger = TranscriptMerger()
@@ -177,6 +179,7 @@ def test_ffmpeg_chunker_integration() -> None:
         assert Path(chunks[0].chunk_filepath).stat().st_size > 0
     finally:
         Path(tf.name).unlink(missing_ok=True)
+
 
 def test_merger_integration() -> None:
     from domain_models import AudioChunk, SpeakerLabel, TranscriptionSegment

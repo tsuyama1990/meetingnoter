@@ -35,6 +35,7 @@ class Diarizer(Protocol):
         """Identifies speaker labels with timestamps for an audio chunk."""
         ...
 
+
 class Aggregator(Protocol):
     def merge(
         self,

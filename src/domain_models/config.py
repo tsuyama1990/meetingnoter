@@ -12,39 +12,6 @@ except ImportError:
     _userdata = None
 
 
-ERROR_MSG_MISSING_SECRET = "Missing required configuration secret"  # noqa: S105
-GOOGLE_API_KEY_DESCRIPTION = "API key for Google Drive access"
-PYANNOTE_AUTH_TOKEN_DESCRIPTION = "HuggingFace token for Pyannote Diarization"  # noqa: S105
-FILE_ID_DESCRIPTION = "The Google Drive file ID to process"
-
-SILERO_VAD_MODEL_PATH_DEFAULT = "silero_vad.jit"
-SILERO_VAD_MODEL_PATH_DESCRIPTION = "Local path to verified Silero VAD .jit model"
-
-FFMPEG_PATH_DESCRIPTION = "Path to the ffmpeg executable"
-
-TRANSCRIBER_MODEL_SIZE_DEFAULT = "large-v3"
-TRANSCRIBER_MODEL_SIZE_DESCRIPTION = "Faster Whisper model size"
-
-TRANSCRIBER_COMPUTE_TYPE_DEFAULT = "int8"
-TRANSCRIBER_COMPUTE_TYPE_DESCRIPTION = "Faster Whisper compute type for optimization"
-
-TRANSCRIBER_LANGUAGE_DEFAULT = "ja"
-TRANSCRIBER_LANGUAGE_DESCRIPTION = "Target language for transcription"
-
-TRANSCRIBER_VAD_FILTER_DEFAULT = True
-TRANSCRIBER_VAD_FILTER_DESCRIPTION = "Enable VAD filtering in whisper"
-
-TRANSCRIBER_CONDITION_ON_PREVIOUS_TEXT_DEFAULT = False
-TRANSCRIBER_CONDITION_ON_PREVIOUS_TEXT_DESCRIPTION = "Disable hallucination loops"
-
-TRANSCRIBER_TEMPERATURE_DEFAULT = (0.0, 0.2)
-TRANSCRIBER_TEMPERATURE_DESCRIPTION = "Decoding temperature"
-
-
-def _get_ffmpeg_path_default() -> str:
-    return str(__import__("shutil").which("ffmpeg") or "ffmpeg")
-
-
 def _get_secret(key_name: str) -> str:
     val = os.environ.get(key_name)
     if val is not None:
@@ -60,98 +27,88 @@ def _get_secret(key_name: str) -> str:
     import logging
 
     logger = logging.getLogger(__name__)
-    logger.error("Missing required configuration secret: %s", key_name)
-
-    msg = f"{ERROR_MSG_MISSING_SECRET}: {key_name}"
+    logger.error("Missing config: %s", key_name)
+    msg = f"Missing config: {key_name}"
     raise ValueError(msg)
+
+
+def _get_ffmpeg_path_default() -> str:
+    return os.environ.get("FFMPEG_PATH", str(__import__("shutil").which("ffmpeg") or "ffmpeg"))
 
 
 class PipelineConfig(BaseSettings):
     """Secure configuration model for the MeetingNoter pipeline."""
 
-    # Required Secrets fetched dynamically to prevent hardcoding or exposure
-    google_api_key: str = Field(
-        default_factory=lambda: _get_secret("GOOGLE_API_KEY"),
-        description=GOOGLE_API_KEY_DESCRIPTION,
-        min_length=1,
-    )
+    google_api_key: str = Field(default_factory=lambda: _get_secret("GOOGLE_API_KEY"), min_length=1)
     pyannote_auth_token: str = Field(
-        default_factory=lambda: _get_secret("PYANNOTE_AUTH_TOKEN"),
-        description=PYANNOTE_AUTH_TOKEN_DESCRIPTION,
-        min_length=1,
+        default_factory=lambda: _get_secret("PYANNOTE_AUTH_TOKEN"), min_length=1
     )
-    file_id: str = Field(
-        default_factory=lambda: _get_secret("FILE_ID"),
-        description=FILE_ID_DESCRIPTION,
-        min_length=1,
-    )
+    file_id: str = Field(default_factory=lambda: _get_secret("FILE_ID"), min_length=1)
 
-    # Optional / Default Configuration
     silero_vad_model_path: str = Field(
-        default=SILERO_VAD_MODEL_PATH_DEFAULT, description=SILERO_VAD_MODEL_PATH_DESCRIPTION
+        default_factory=lambda: os.environ.get("SILERO_VAD_MODEL_PATH", "silero_vad.jit")
     )
 
-    # Chunker Configuration
-    ffmpeg_path: str = Field(
-        default_factory=_get_ffmpeg_path_default,
-        description=FFMPEG_PATH_DESCRIPTION,
-    )
+    ffmpeg_path: str = Field(default_factory=_get_ffmpeg_path_default)
 
-    # Transcriber Configuration
     transcriber_model_size: str = Field(
-        default=TRANSCRIBER_MODEL_SIZE_DEFAULT, description=TRANSCRIBER_MODEL_SIZE_DESCRIPTION
+        default_factory=lambda: os.environ.get("TRANSCRIBER_MODEL_SIZE", "large-v3")
     )
     transcriber_compute_type: str = Field(
-        default=TRANSCRIBER_COMPUTE_TYPE_DEFAULT, description=TRANSCRIBER_COMPUTE_TYPE_DESCRIPTION
+        default_factory=lambda: os.environ.get("TRANSCRIBER_COMPUTE_TYPE", "int8")
     )
     transcriber_language: str = Field(
-        default=TRANSCRIBER_LANGUAGE_DEFAULT, description=TRANSCRIBER_LANGUAGE_DESCRIPTION
+        default_factory=lambda: os.environ.get("TRANSCRIBER_LANGUAGE", "ja")
     )
     transcriber_vad_filter: bool = Field(
-        default=TRANSCRIBER_VAD_FILTER_DEFAULT, description=TRANSCRIBER_VAD_FILTER_DESCRIPTION
+        default_factory=lambda: os.environ.get("TRANSCRIBER_VAD_FILTER", "true").lower() == "true"
     )
     transcriber_condition_on_previous_text: bool = Field(
-        default=TRANSCRIBER_CONDITION_ON_PREVIOUS_TEXT_DEFAULT,
-        description=TRANSCRIBER_CONDITION_ON_PREVIOUS_TEXT_DESCRIPTION,
-    )
-    transcriber_temperature: tuple[float, float] = Field(
-        default=TRANSCRIBER_TEMPERATURE_DEFAULT, description=TRANSCRIBER_TEMPERATURE_DESCRIPTION
+        default_factory=lambda: (
+            os.environ.get("TRANSCRIBER_CONDITION_ON_PREVIOUS_TEXT", "false").lower() == "true"
+        )
     )
 
-    # Architectural Module Injection Paths
+    transcriber_temperature: tuple[float, float] = Field(default_factory=lambda: (0.0, 0.2))
+
     aggregator_module_path: str = Field(
-        default="meetingnoter.processing.aggregator",
-        description="Path to Aggregator implementation.",
+        default_factory=lambda: os.environ.get(
+            "AGGREGATOR_MODULE_PATH", "meetingnoter.processing.aggregator"
+        )
     )
     drive_client_module_path: str = Field(
-        default="meetingnoter.ingestion.drive_client",
-        description="Path to Drive Client implementation.",
+        default_factory=lambda: os.environ.get(
+            "DRIVE_CLIENT_MODULE_PATH", "meetingnoter.ingestion.drive_client"
+        )
     )
     chunker_module_path: str = Field(
-        default="meetingnoter.processing.chunker",
-        description="Path to Audio Splitter implementation.",
+        default_factory=lambda: os.environ.get(
+            "CHUNKER_MODULE_PATH", "meetingnoter.processing.chunker"
+        )
     )
     vad_module_path: str = Field(
-        default="meetingnoter.processing.vad", description="Path to VAD implementation."
+        default_factory=lambda: os.environ.get("VAD_MODULE_PATH", "meetingnoter.processing.vad")
     )
     transcriber_module_path: str = Field(
-        default="meetingnoter.processing.transcriber",
-        description="Path to Transcriber implementation.",
+        default_factory=lambda: os.environ.get(
+            "TRANSCRIBER_MODULE_PATH", "meetingnoter.processing.transcriber"
+        )
     )
     diarizer_module_path: str = Field(
-        default="meetingnoter.processing.diarizer", description="Path to Diarizer implementation."
+        default_factory=lambda: os.environ.get(
+            "DIARIZER_MODULE_PATH", "meetingnoter.processing.diarizer"
+        )
     )
 
-    # Process Hyperparameters
     chunk_length_minutes: int = Field(
-        default=20, description="Audio segment split length to prevent Pyannote OOM."
+        default_factory=lambda: int(os.environ.get("CHUNK_LENGTH_MINUTES", "20"))
     )
     vad_threshold: float = Field(
-        default=0.5, description="Probability threshold for speech detection."
+        default_factory=lambda: float(os.environ.get("VAD_THRESHOLD", "0.5"))
     )
     vad_min_speech_duration_ms: int = Field(
-        default=250, description="Minimum length of a speech segment to recognize."
+        default_factory=lambda: int(os.environ.get("VAD_MIN_SPEECH_DURATION_MS", "250"))
     )
     vad_min_silence_duration_ms: int = Field(
-        default=1000, description="Minimum length of silence to split phrases."
+        default_factory=lambda: int(os.environ.get("VAD_MIN_SILENCE_DURATION_MS", "1000"))
     )

@@ -457,7 +457,8 @@ def test_pipeline_orchestration_cleanup_on_download_fail(tmp_path: Path) -> None
             splitter=splitter,
             detector=detector,
             transcriber=transcriber,
-            diarizer=diarizer, aggregator=TranscriptMerger(),
+            diarizer=diarizer,
+            aggregator=TranscriptMerger(),
             file_id="test_id",
         )
     # The source file was never created, so we don't assert deletion,
@@ -485,7 +486,8 @@ def test_pipeline_orchestration_cleanup_on_chunking_fail(tmp_path: Path) -> None
             splitter=splitter,
             detector=detector,
             transcriber=transcriber,
-            diarizer=diarizer, aggregator=TranscriptMerger(),
+            diarizer=diarizer,
+            aggregator=TranscriptMerger(),
             file_id="test_id",
         )
     # Ensure source was cleaned up in the finally block
@@ -526,7 +528,8 @@ def test_pipeline_orchestration_cleanup_on_processing_fail(tmp_path: Path) -> No
             splitter=splitter,
             detector=detector,
             transcriber=transcriber,
-            diarizer=diarizer, aggregator=TranscriptMerger(),
+            diarizer=diarizer,
+            aggregator=TranscriptMerger(),
             file_id="test_id",
         )
     # Ensure all temp files were cleaned up

@@ -451,6 +451,7 @@ def cell_tests_c07_2(mo: Any) -> tuple[Any, ...]:
                 # Let's just run it! Real components with intercepted downloads.
                 try:
                     from meetingnoter import TranscriptMerger
+
                     _c07_transcript = _c07_run_pipeline(
                         storage=_c07_storage,
                         splitter=_c07_splitter,
@@ -535,6 +536,7 @@ def cell_tests_c07_3(mo: Any) -> tuple[Any, ...]:
             _c07_err_storage.http_client = _mock_http_err
 
             from meetingnoter import TranscriptMerger
+
             _c07_err_run_pipeline(
                 storage=_c07_err_storage,
                 splitter=_c07_err_splitter,
@@ -569,6 +571,7 @@ def cell_tests_c07_3(mo: Any) -> tuple[Any, ...]:
     _output_c07_2 = mo.vstack([test_c07_error_handling()])
     return (_output_c07_2,)
 
+
 @app.cell
 def cell_tests_c08_1(mo: Any) -> tuple[Any, ...]:
     return (
@@ -591,14 +594,15 @@ def cell_tests_c08_2(mo: Any) -> tuple[Any, ...]:
             from meetingnoter import TranscriptMerger
 
             chunk = AudioChunk(
-                chunk_filepath="sample_chunk_1.wav", start_time=1200.0, end_time=2400.0, chunk_index=1
+                chunk_filepath="sample_chunk_1.wav",
+                start_time=1200.0,
+                end_time=2400.0,
+                chunk_index=1,
             )
             transcriptions = [
                 TranscriptionSegment(start_time=10.0, end_time=15.0, text="Hello offset")
             ]
-            labels = [
-                SpeakerLabel(start_time=10.0, end_time=15.0, speaker_id="SPEAKER_01")
-            ]
+            labels = [SpeakerLabel(start_time=10.0, end_time=15.0, speaker_id="SPEAKER_01")]
 
             merger = TranscriptMerger()
             result = merger.merge(chunk, transcriptions, labels)
@@ -626,26 +630,34 @@ def cell_tests_c08_3(mo: Any) -> tuple[Any, ...]:
             from meetingnoter import TranscriptMerger
 
             chunk = AudioChunk(
-                chunk_filepath="sample_chunk_1.wav", start_time=1200.0, end_time=2400.0, chunk_index=1
+                chunk_filepath="sample_chunk_1.wav",
+                start_time=1200.0,
+                end_time=2400.0,
+                chunk_index=1,
             )
-            transcriptions = [
-                TranscriptionSegment(start_time=10.0, end_time=15.0, text="Valid")
-            ]
+            transcriptions = [TranscriptionSegment(start_time=10.0, end_time=15.0, text="Valid")]
             labels = [
-                SpeakerLabel(start_time=20.0, end_time=10.0, speaker_id="SPEAKER_01") # Invalid time ordering
+                SpeakerLabel(
+                    start_time=20.0, end_time=10.0, speaker_id="SPEAKER_01"
+                )  # Invalid time ordering
             ]
 
             merger = TranscriptMerger()
             merger.merge(chunk, transcriptions, labels)
 
-            return mo.md("**Scenario ID: UAT-C08-02 - Robust Error Handling - FAILED**\\n\\nException was not triggered for malformed label!")
+            return mo.md(
+                "**Scenario ID: UAT-C08-02 - Robust Error Handling - FAILED**\\n\\nException was not triggered for malformed label!"
+            )
         except Exception as e:
             from pydantic import ValidationError
+
             if isinstance(e, ValidationError):
                 return mo.md(
                     f"**Scenario ID: UAT-C08-02 - Robust Error Handling - SUCCESS**\\n\\nCaught expected validation error: `{e}`"
                 )
-            return mo.md(f"**Scenario ID: UAT-C08-02 - Robust Error Handling - FAILED**\\n\\nUnexpected error: {e}")
+            return mo.md(
+                f"**Scenario ID: UAT-C08-02 - Robust Error Handling - FAILED**\\n\\nUnexpected error: {e}"
+            )
 
     _output_c08_2 = mo.vstack([test_c08_error_handling()])
     return (_output_c08_2,)

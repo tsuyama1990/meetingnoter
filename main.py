@@ -120,7 +120,11 @@ def run_pipeline(
             for chunk in chunks:
                 all_segments.extend(
                     _process_single_chunk(
-                        chunk=chunk, detector=detector, transcriber=transcriber, diarizer=diarizer, aggregator=aggregator
+                        chunk=chunk,
+                        detector=detector,
+                        transcriber=transcriber,
+                        diarizer=diarizer,
+                        aggregator=aggregator,
                     )
                 )
         except Exception:
