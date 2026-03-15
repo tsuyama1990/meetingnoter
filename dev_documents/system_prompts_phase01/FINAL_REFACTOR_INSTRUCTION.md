@@ -4,12 +4,21 @@ Your mission is to perform the **Final Architectural Refactoring & Stabilization
 
 All implementation cycles have been completed. Now, you must ensure that the codebase is not just a collection of working modules, but a unified, elegant, and production-ready system. 
 
+# CORE PRINCIPLE: HIERARCHICAL DESIGN (Thinking Protocol)
+You must follow the architectural hierarchy in your reasoning process:
+1. **Global Vision** (`SYSTEM_ARCHITECTURE.md`): Re-evaluate the entire project against the initial design goals.
+2. **Detailed Design** (Individual SPECS): Ensure all cycles have converged into a consistent whole.
+3. **Code Blueprint** (Unified Schemas): Perform a "Global Schema Audit" to remove redundancies and optimize shared models.
+4. **Verification Design** (Consolidated Test Suite): Ensure the entire system is verified as a single unit.
+
+**THINKING BLOCK REQUIREMENT**: At the beginning of your response, you MUST include a `<thought>` block where you perform a "Global Architectural Audit" and explain how you will unify the codebase before taking any action.
+
 # Critical Process (Execute in Order)
 
 ## 1. Global Architectural Review (The "Whole Picture")
 - **Review**: Analyze the entire codebase holistically. Check the integration points between all features implemented across all cycles.
 - **Consistency Check**: Ensure that naming conventions, design patterns (e.g., Repository pattern, Service layer), and error handling strategies are consistent throughout the project.
-- **Spec Alignment**: Verify the final state against `SYSTEM_ARCHITECTURE.md` and the master `SPEC.md`. 
+- **Spec Alignment**: Verify the final state against `SYSTEM_ARCHITECTURE.md` and the cycle-specific specification documents in `dev_documents/system_prompts/`. 
     - *Decision Rule*: If the code found a superior, more pragmatic design during development than what was in the initial specs, **Prioritize the Code's Design**. The code is now the single source of truth for the best possible architecture.
 
 ## 2. Unified Schema & Contract Alignment
