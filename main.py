@@ -3,14 +3,16 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import pydantic
+
 try:
     import torch
 except ImportError:
     torch: Any = None  # type: ignore[no-redef]
 
-import importlib
 
 from domain_models import (
+    Aggregator,
     AudioChunk,
     AudioSource,
     AudioSplitter,
@@ -32,64 +34,6 @@ def get_config() -> PipelineConfig:
     return PipelineConfig()
 
 
-def _process_single_chunk(
-    chunk: AudioChunk,
-    detector: SpeechDetector,
-    transcriber: Transcriber,
-    diarizer: Diarizer,
-) -> list[DiarizedSegment]:
-    """Processes a single chunk to manage memory strictly."""
-    from domain_models import SpeakerLabel, SpeechSegment, TranscriptionSegment
-
-    try:
-        # VAD gating
-        speech_segments: list[SpeechSegment] = detector.detect_speech(chunk)
-
-        # Transcribe with faster-whisper
-        transcriptions: list[TranscriptionSegment] = transcriber.transcribe(chunk, speech_segments)
-
-        # Diarize with Pyannote
-        speaker_labels: list[SpeakerLabel] = diarizer.diarize(chunk)
-
-        # Aggregate results
-        segments: list[DiarizedSegment] = []
-        for t, s in zip(transcriptions, speaker_labels, strict=False):
-            segments.append(
-                DiarizedSegment(
-                    start_time=t.start_time,
-                    end_time=t.end_time,
-                    text=t.text,
-                    speaker_id=s.speaker_id,
-                )
-            )
-    except RuntimeError as e:
-        if "CUDA out of memory" in str(e):
-            logger.exception(
-                "Resource exhaustion (OOM) encountered processing chunk %d. Aborting pipeline.",
-                chunk.chunk_index,
-            )
-        else:
-            logger.exception(
-                "Runtime error processing chunk %d. Aborting pipeline.", chunk.chunk_index
-            )
-        raise
-    except ValueError:
-        logger.exception(
-            "Validation error processing chunk %d. Aborting pipeline.", chunk.chunk_index
-        )
-        raise
-    except Exception as e:
-        # Re-raise unexpected exceptions to fail fast
-        msg = f"Unexpected failure in pipeline processing chunk {chunk.chunk_index}: {e}"
-        raise RuntimeError(msg) from e
-    else:
-        _cleanup_memory()
-        return segments
-    finally:
-        # Clear GPU memory after each heavy chunk to prevent OOM even on error
-        _cleanup_memory()
-
-
 def _cleanup_memory() -> None:
     """Centralized resource manager for explicit memory scrubbing."""
     import gc
@@ -99,57 +43,115 @@ def _cleanup_memory() -> None:
         torch.cuda.empty_cache()
 
 
+class PipelineOrchestrator:
+    def __init__(
+        self,
+        storage: StorageClient,
+        splitter: AudioSplitter,
+        detector: SpeechDetector,
+        transcriber: Transcriber,
+        diarizer: Diarizer,
+        aggregator: Aggregator,
+    ) -> None:
+        self.storage = storage
+        self.splitter = splitter
+        self.detector = detector
+        self.transcriber = transcriber
+        self.diarizer = diarizer
+        self.aggregator = aggregator
+
+    def run(self, file_id: str) -> DiarizedTranscript:
+        source: AudioSource | None = None
+        chunks: list[AudioChunk] = []
+        try:
+            source = self.storage.download(file_id)
+            chunks = self.splitter.split(source)
+            all_segments: list[DiarizedSegment] = []
+
+            try:
+                for chunk in chunks:
+                    all_segments.extend(self._process_single_chunk(chunk))
+            except Exception:
+                logger.exception("Pipeline aborted during chunk processing loop.")
+                raise
+
+            _cleanup_memory()
+            return DiarizedTranscript(segments=all_segments)
+        finally:
+            _cleanup_memory()
+            if source is not None:
+                Path(source.filepath).unlink(missing_ok=True)
+            for chunk in chunks:
+                Path(chunk.chunk_filepath).unlink(missing_ok=True)
+
+    def _process_single_chunk(self, chunk: AudioChunk) -> list[DiarizedSegment]:
+        from domain_models import SpeakerLabel, SpeechSegment, TranscriptionSegment
+
+        try:
+            speech_segments: list[SpeechSegment] = self.detector.detect_speech(chunk)
+            transcriptions: list[TranscriptionSegment] = self.transcriber.transcribe(
+                chunk, speech_segments
+            )
+            speaker_labels: list[SpeakerLabel] = self.diarizer.diarize(chunk)
+            segments: list[DiarizedSegment] = self.aggregator.merge(
+                chunk, transcriptions, speaker_labels
+            )
+        except RuntimeError as e:
+            if "CUDA out of memory" in str(e):
+                logger.exception(
+                    "Resource exhaustion (OOM) encountered processing chunk %d. Aborting pipeline.",
+                    chunk.chunk_index,
+                )
+            else:
+                logger.exception(
+                    "Runtime error processing chunk %d. Aborting pipeline.", chunk.chunk_index
+                )
+            raise
+        except ValueError:
+            logger.exception(
+                "Validation error processing chunk %d. Aborting pipeline.", chunk.chunk_index
+            )
+            raise
+        except Exception as e:
+            msg = f"Unexpected failure in pipeline processing chunk {chunk.chunk_index}: {e}"
+            raise RuntimeError(msg) from e
+        else:
+            _cleanup_memory()
+            return segments
+        finally:
+            _cleanup_memory()
+
+
+# Backwards compatibility alias for tests
 def run_pipeline(
     storage: StorageClient,
     splitter: AudioSplitter,
     detector: SpeechDetector,
     transcriber: Transcriber,
     diarizer: Diarizer,
+    aggregator: Aggregator,
     file_id: str,
 ) -> DiarizedTranscript:
-    """Orchestrates the entire voice analysis pipeline."""
-    source: AudioSource | None = None
-    chunks: list[AudioChunk] = []
+    orchestrator = PipelineOrchestrator(
+        storage, splitter, detector, transcriber, diarizer, aggregator
+    )
+    return orchestrator.run(file_id)
 
-    try:
-        # 1. Download audio
-        source = storage.download(file_id)
 
-        # 2. Split into chunks
-        chunks = splitter.split(source)
-
-        all_segments: list[DiarizedSegment] = []
-
-        # 3. Process each chunk
-
-        try:
-            for chunk in chunks:
-                all_segments.extend(
-                    _process_single_chunk(
-                        chunk=chunk, detector=detector, transcriber=transcriber, diarizer=diarizer
-                    )
-                )
-        except Exception:
-            logger.exception("Pipeline aborted during chunk processing loop.")
-            raise
-
-        _cleanup_memory()
-        return DiarizedTranscript(segments=all_segments)
-    finally:
-        # Guarantee final memory scrub before returning to main
-        _cleanup_memory()
-
-        # Cleanup temp files
-        if source is not None:
-            Path(source.filepath).unlink(missing_ok=True)
-        for chunk in chunks:
-            Path(chunk.chunk_filepath).unlink(missing_ok=True)
+def _process_single_chunk(
+    chunk: AudioChunk,
+    detector: SpeechDetector,
+    transcriber: Transcriber,
+    diarizer: Diarizer,
+    aggregator: Aggregator,
+) -> list[DiarizedSegment]:
+    orchestrator = PipelineOrchestrator(None, None, detector, transcriber, diarizer, aggregator)  # type: ignore[arg-type]
+    return orchestrator._process_single_chunk(chunk)
 
 
 def main() -> None:
     """Main entry point to execute the pipeline using Dependency Injection container initialization."""
     # 1. Resolve and validate configuration
-    import pydantic
 
     try:
         config: PipelineConfig = get_config()
@@ -160,52 +162,41 @@ def main() -> None:
         logger.exception("Configuration validation failed due to missing secrets.")
         sys.exit(1)
 
-    # 2. Initialize concrete implementations by passing dependencies dynamically rather than hardcoding imports
+    # 2. Initialize concrete implementations using a Factory to prevent hardcoded imports in main
+    from meetingnoter.factory import PipelineComponentFactory
+
     try:
-        drive_client_module = importlib.import_module(config.drive_client_module_path)
-        chunker_module = importlib.import_module(config.chunker_module_path)
-        vad_module = importlib.import_module(config.vad_module_path)
-        transcriber_module = importlib.import_module(config.transcriber_module_path)
-        diarizer_module = importlib.import_module(config.diarizer_module_path)
+        storage: StorageClient = PipelineComponentFactory.create_storage_client(config)
+        splitter: AudioSplitter = PipelineComponentFactory.create_splitter(config)
+        detector: SpeechDetector = PipelineComponentFactory.create_detector(config)
+        transcriber: Transcriber = PipelineComponentFactory.create_transcriber(config)
+        aggregator: Aggregator = PipelineComponentFactory.create_aggregator()
 
-        storage: StorageClient = drive_client_module.GoogleDriveClient(config=config)
-        splitter: AudioSplitter = chunker_module.FFmpegChunker(
-            ffmpeg_path=config.ffmpeg_path, chunk_length_minutes=config.chunk_length_minutes
-        )
-        detector: SpeechDetector = vad_module.SileroVADDetector(
-            threshold=config.vad_threshold,
-            min_speech_duration_ms=config.vad_min_speech_duration_ms,
-            min_silence_duration_ms=config.vad_min_silence_duration_ms,
-            model_path=config.silero_vad_model_path,
-        )
-        transcriber: Transcriber = transcriber_module.FasterWhisperTranscriber(config)
+        from meetingnoter.factory import validate_pyannote_token
 
-        if not config.pyannote_auth_token or not config.pyannote_auth_token.startswith("hf_"):
-            msg = "Invalid Pyannote auth token. It must be a valid Hugging Face token starting with 'hf_'."
-            raise ValueError(msg)
+        validate_pyannote_token(config.pyannote_auth_token)
 
         try:
-            diarizer: Diarizer = diarizer_module.PyannoteDiarizer(
-                auth_token=config.pyannote_auth_token
-            )
+            diarizer: Diarizer = PipelineComponentFactory.create_diarizer(config)
         except Exception as e:
             msg = f"Failed to initialize PyannoteDiarizer. Ensure pyannote.audio is correctly installed: {e}"
             raise RuntimeError(msg) from e
 
-    except RuntimeError:
-        logger.exception("Failed to dynamically initialize pipeline dependencies.")
+    except Exception:
+        logger.exception("Failed to statically initialize pipeline dependencies.")
         sys.exit(1)
 
     # 3. Execute pipeline
     try:
-        transcript: DiarizedTranscript = run_pipeline(
+        orchestrator = PipelineOrchestrator(
             storage=storage,
             splitter=splitter,
             detector=detector,
             transcriber=transcriber,
             diarizer=diarizer,
-            file_id=config.file_id,
+            aggregator=aggregator,
         )
+        transcript: DiarizedTranscript = orchestrator.run(config.file_id)
     except RuntimeError:
         logger.exception("Pipeline execution failed due to an error.")
         sys.exit(1)

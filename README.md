@@ -13,6 +13,7 @@ By running open-source foundation models (Whisper, Silero VAD, Pyannote.audio) l
 - **Voice Activity Detection (VAD) Gating:** Uses Silero VAD to detect speech segments, mathematically eliminating Whisper's hallucination loops during silent periods.
 - **High-Accuracy Transcription:** Utilizes the highly optimized `faster-whisper` engine (CTranslate2) with specific configurations for the Japanese language to prevent data loss.
 - **Accurate Speaker Diarization:** Integrates `pyannote.audio` to identify speaker turns and accurately segment audio with specific overlap prevention settings to accommodate Japanese conversational styles (e.g., 'aizuchi').
+- **Temporal Alignment and Data Aggregation:** Unifies output boundaries and synchronizes localized transcript timestamps back into a comprehensive, continuous global timeline suitable for final CPF qualitative analysis.
 
 ## Installation
 
@@ -59,5 +60,5 @@ PYTHONPATH=src uv run marimo edit tests/uat/UAT_AND_TUTORIAL.py
 ## Structure
 - `src/domain_models/`: Pydantic-based data contracts and protocol interfaces.
 - `src/meetingnoter/ingestion/`: Modules for securely downloading audio data.
-- `src/meetingnoter/processing/`: Core processing logic (chunking, VAD, transcription, diarization).
+- `src/meetingnoter/processing/`: Core processing logic (chunking, VAD, transcription, diarization, aggregation).
 - `tests/`: Unit, integration, and UAT test suites.

@@ -139,9 +139,9 @@ def test_google_drive_client_success(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Set up safe test configuration instead of hardcoding API keys
-    monkeypatch.setenv("GOOGLE_API_KEY", "env_dummy_key_123")
-    monkeypatch.setenv("PYANNOTE_AUTH_TOKEN", "env_dummy_token_123")
-    monkeypatch.setenv("FILE_ID", "env_dummy_file_123")
+    monkeypatch.setenv("GOOGLE_API_KEY", __import__("os").urandom(8).hex())
+    monkeypatch.setenv("PYANNOTE_AUTH_TOKEN", "hf_" + __import__("os").urandom(8).hex())
+    monkeypatch.setenv("FILE_ID", __import__("os").urandom(8).hex())
     config = PipelineConfig()
 
     mock_http = MagicMock(spec=requests.Session)
@@ -163,9 +163,9 @@ def test_google_drive_client_success(
 
 
 def test_google_drive_client_failure(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("GOOGLE_API_KEY", "env_dummy_key_123")
-    monkeypatch.setenv("PYANNOTE_AUTH_TOKEN", "env_dummy_token_123")
-    monkeypatch.setenv("FILE_ID", "env_dummy_file_123")
+    monkeypatch.setenv("GOOGLE_API_KEY", __import__("os").urandom(8).hex())
+    monkeypatch.setenv("PYANNOTE_AUTH_TOKEN", "hf_" + __import__("os").urandom(8).hex())
+    monkeypatch.setenv("FILE_ID", __import__("os").urandom(8).hex())
     config = PipelineConfig()
 
     mock_http = MagicMock(spec=requests.Session)
@@ -177,9 +177,9 @@ def test_google_drive_client_failure(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_google_drive_client_http_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("GOOGLE_API_KEY", "env_dummy_key_123")
-    monkeypatch.setenv("PYANNOTE_AUTH_TOKEN", "env_dummy_token_123")
-    monkeypatch.setenv("FILE_ID", "env_dummy_file_123")
+    monkeypatch.setenv("GOOGLE_API_KEY", __import__("os").urandom(8).hex())
+    monkeypatch.setenv("PYANNOTE_AUTH_TOKEN", "hf_" + __import__("os").urandom(8).hex())
+    monkeypatch.setenv("FILE_ID", __import__("os").urandom(8).hex())
     config = PipelineConfig()
 
     mock_http = MagicMock(spec=requests.Session)
@@ -191,9 +191,9 @@ def test_google_drive_client_http_error(monkeypatch: pytest.MonkeyPatch) -> None
 
 
 def test_google_drive_client_unexpected_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("GOOGLE_API_KEY", "env_dummy_key_123")
-    monkeypatch.setenv("PYANNOTE_AUTH_TOKEN", "env_dummy_token_123")
-    monkeypatch.setenv("FILE_ID", "env_dummy_file_123")
+    monkeypatch.setenv("GOOGLE_API_KEY", __import__("os").urandom(8).hex())
+    monkeypatch.setenv("PYANNOTE_AUTH_TOKEN", "hf_" + __import__("os").urandom(8).hex())
+    monkeypatch.setenv("FILE_ID", __import__("os").urandom(8).hex())
     config = PipelineConfig()
 
     mock_http = MagicMock(spec=requests.Session)
@@ -202,3 +202,45 @@ def test_google_drive_client_unexpected_error(monkeypatch: pytest.MonkeyPatch) -
     client = GoogleDriveClient(config=config, http_client=mock_http)
     with pytest.raises(RuntimeError, match="Unexpected error while parsing audio"):
         client.download("test_id")
+
+
+def test_transcript_merger_temporal_offset() -> None:
+    from domain_models import AudioChunk, SpeakerLabel, TranscriptionSegment
+    from meetingnoter import TranscriptMerger
+
+    merger = TranscriptMerger()
+    chunk = AudioChunk(
+        chunk_filepath="dummy.wav", start_time=1200.0, end_time=2400.0, chunk_index=1
+    )
+
+    transcriptions = [TranscriptionSegment(start_time=10.0, end_time=20.0, text="Hello offset")]
+    labels = [SpeakerLabel(start_time=10.0, end_time=20.0, speaker_id="SPEAKER_01")]
+
+    result = merger.merge(chunk, transcriptions, labels)
+    assert len(result) == 1
+    assert result[0].start_time == 1210.0
+    assert result[0].end_time == 1220.0
+    assert result[0].text == "Hello offset"
+    assert result[0].speaker_id == "SPEAKER_01"
+
+
+def test_transcript_merger_overlap() -> None:
+    from domain_models import AudioChunk, SpeakerLabel, TranscriptionSegment
+    from meetingnoter import TranscriptMerger
+
+    merger = TranscriptMerger()
+    chunk = AudioChunk(chunk_filepath="dummy.wav", start_time=0.0, end_time=60.0, chunk_index=0)
+
+    transcriptions = [
+        TranscriptionSegment(start_time=5.0, end_time=15.0, text="I overlap more with speaker 2")
+    ]
+    labels = [
+        SpeakerLabel(start_time=0.0, end_time=6.0, speaker_id="SPEAKER_01"),  # 1s overlap
+        SpeakerLabel(start_time=6.0, end_time=20.0, speaker_id="SPEAKER_02"),  # 9s overlap
+    ]
+
+    result = merger.merge(chunk, transcriptions, labels)
+    assert len(result) == 1
+    assert result[0].speaker_id == "SPEAKER_02"
+    assert result[0].start_time == 5.0
+    assert result[0].end_time == 15.0
