@@ -3,7 +3,18 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from domain_models import AudioChunk, PipelineConfig, SpeechSegment
+from domain_models import (
+    AudioChunk,
+    AudioSource,
+    AudioSplitter,
+    Diarizer,
+    PipelineConfig,
+    SpeechDetector,
+    SpeechSegment,
+    StorageClient,
+    Transcriber,
+)
+from main import _process_single_chunk, run_pipeline
 from meetingnoter.processing.transcriber import FasterWhisperTranscriber
 
 
@@ -59,29 +70,33 @@ def test_transcriber_load_and_transcribe(
 
     speech_segments = [SpeechSegment(start_time=10.0, end_time=15.0)]
 
-    results = transcriber.transcribe(chunk, speech_segments)
+    with patch.object(transcriber, "_cleanup_resources") as mock_cleanup:
+        results = transcriber.transcribe(chunk, speech_segments)
 
-    # Check that model was loaded
-    assert transcriber.model is not None
-    mock_whisper_model.assert_called_once()
+        # Check that model was loaded
+        assert transcriber.model is not None
+        mock_whisper_model.assert_called_once()
 
-    # Check that transcribe was called with correct parameters
-    call_kwargs = mock_model_instance.transcribe.call_args.kwargs
-    assert call_kwargs["language"] == "ja"
-    assert call_kwargs["compression_ratio_threshold"] is None
-    assert call_kwargs["log_prob_threshold"] is None
-    assert call_kwargs["no_speech_threshold"] is None
-    assert call_kwargs["condition_on_previous_text"] is False
+        # Check that transcribe was called with correct parameters
+        call_kwargs = mock_model_instance.transcribe.call_args.kwargs
+        assert call_kwargs["language"] == "ja"
+        assert call_kwargs["compression_ratio_threshold"] is None
+        assert call_kwargs["log_prob_threshold"] is None
+        assert call_kwargs["no_speech_threshold"] is None
+        assert call_kwargs["condition_on_previous_text"] is False
 
-    # Check results mapping to global timestamps
-    assert len(results) == 2
-    assert results[0].start_time == 10.5
-    assert results[0].end_time == 12.0
-    assert results[0].text == "Hello"
+        # Check results mapping to global timestamps
+        assert len(results) == 2
+        assert results[0].start_time == 10.5
+        assert results[0].end_time == 12.0
+        assert results[0].text == "Hello"
 
-    assert results[1].start_time == 12.5
-    assert results[1].end_time == 14.0
-    assert results[1].text == "World"
+        assert results[1].start_time == 12.5
+        assert results[1].end_time == 14.0
+        assert results[1].text == "World"
+
+        # Verify cleanup is called on successful path
+        mock_cleanup.assert_called_once()
 
 
 def test_transcriber_file_not_found() -> None:
@@ -282,8 +297,12 @@ def test_transcriber_cuda_oom_error_during_inference(
             chunk_filepath=str(test_file), start_time=0.0, end_time=10.0, chunk_index=0
         )
 
-        with pytest.raises(RuntimeError, match="CUDA Out of Memory during transcription."):
-            transcriber.transcribe(chunk, [])
+        with patch.object(transcriber, "_cleanup_resources") as mock_cleanup:
+            with pytest.raises(RuntimeError, match="CUDA Out of Memory during transcription."):
+                transcriber.transcribe(chunk, [])
+
+            # Verify cleanup is called on CUDA OOM error path
+            mock_cleanup.assert_called_once()
 
 
 def test_transcriber_cleanup_resources_no_torch() -> None:
@@ -335,10 +354,14 @@ def test_transcriber_general_error_during_inference(
             chunk_filepath=str(test_file), start_time=0.0, end_time=10.0, chunk_index=0
         )
 
-        with pytest.raises(
-            RuntimeError, match="Faster whisper transcription failed: Some other error"
-        ):
-            transcriber.transcribe(chunk, [])
+        with patch.object(transcriber, "_cleanup_resources") as mock_cleanup:
+            with pytest.raises(
+                RuntimeError, match="Faster whisper transcription failed: Some other error"
+            ):
+                transcriber.transcribe(chunk, [])
+
+            # Verify cleanup is called on general error path
+            mock_cleanup.assert_called_once()
 
 
 @patch("pathlib.Path.is_file", return_value=True)
@@ -409,3 +432,145 @@ def test_transcriber_cleanup_resources_torch_cuda_empty_cache() -> None:
     ):
         transcriber._cleanup_resources()
         mock_empty_cache.assert_called_once()
+
+
+# ---------------------------------------------------------
+# CYCLE 07 Tests for Pipeline Orchestration
+# ---------------------------------------------------------
+
+
+def test_pipeline_orchestration_cleanup_on_download_fail(tmp_path: Path) -> None:
+    # Arrange
+    storage = MagicMock(spec=StorageClient)
+    storage.download.side_effect = RuntimeError("Network Error")
+
+    splitter = MagicMock(spec=AudioSplitter)
+    detector = MagicMock(spec=SpeechDetector)
+    transcriber = MagicMock(spec=Transcriber)
+    diarizer = MagicMock(spec=Diarizer)
+
+    # Act & Assert
+    with pytest.raises(RuntimeError, match="Network Error"):
+        run_pipeline(
+            storage=storage,
+            splitter=splitter,
+            detector=detector,
+            transcriber=transcriber,
+            diarizer=diarizer,
+            file_id="test_id",
+        )
+    # The source file was never created, so we don't assert deletion,
+    # but we ensure the code safely passed the finally block without error.
+
+
+def test_pipeline_orchestration_cleanup_on_chunking_fail(tmp_path: Path) -> None:
+    # Arrange
+    storage = MagicMock(spec=StorageClient)
+    f = tmp_path / "source.wav"
+    f.touch()
+    storage.download.return_value = AudioSource(filepath=str(f), duration_seconds=10.0)
+
+    splitter = MagicMock(spec=AudioSplitter)
+    splitter.split.side_effect = ValueError("Invalid audio format")
+
+    detector = MagicMock(spec=SpeechDetector)
+    transcriber = MagicMock(spec=Transcriber)
+    diarizer = MagicMock(spec=Diarizer)
+
+    # Act & Assert
+    with pytest.raises(ValueError, match="Invalid audio format"):
+        run_pipeline(
+            storage=storage,
+            splitter=splitter,
+            detector=detector,
+            transcriber=transcriber,
+            diarizer=diarizer,
+            file_id="test_id",
+        )
+    # Ensure source was cleaned up in the finally block
+    assert not (tmp_path / "source.wav").exists()
+
+
+def test_pipeline_orchestration_cleanup_on_processing_fail(tmp_path: Path) -> None:
+    # Arrange
+    storage = MagicMock(spec=StorageClient)
+    f = tmp_path / "source.wav"
+    f.touch()
+    storage.download.return_value = AudioSource(filepath=str(f), duration_seconds=10.0)
+
+    splitter = MagicMock(spec=AudioSplitter)
+    f1 = tmp_path / "chunk1.wav"
+    f1.touch()
+    f2 = tmp_path / "chunk2.wav"
+    f2.touch()
+    splitter.split.return_value = [
+        AudioChunk(chunk_filepath=str(f1), start_time=0.0, end_time=5.0, chunk_index=0),
+        AudioChunk(chunk_filepath=str(f2), start_time=5.0, end_time=10.0, chunk_index=1),
+    ]
+
+    detector = MagicMock(spec=SpeechDetector)
+    # Force detector to fail on the second chunk
+    detector.detect_speech.side_effect = [[], RuntimeError("CUDA out of memory")]
+
+    transcriber = MagicMock(spec=Transcriber)
+    transcriber.transcribe.return_value = []
+
+    diarizer = MagicMock(spec=Diarizer)
+    diarizer.diarize.return_value = []
+
+    # Act & Assert
+    with pytest.raises(RuntimeError, match="CUDA out of memory"):
+        run_pipeline(
+            storage=storage,
+            splitter=splitter,
+            detector=detector,
+            transcriber=transcriber,
+            diarizer=diarizer,
+            file_id="test_id",
+        )
+    # Ensure all temp files were cleaned up
+    assert not (tmp_path / "source.wav").exists()
+    assert not (tmp_path / "chunk1.wav").exists()
+    assert not (tmp_path / "chunk2.wav").exists()
+
+
+def test_process_single_chunk_network_error(tmp_path: Path) -> None:
+    chunk = AudioChunk(
+        chunk_filepath=str(tmp_path / "test.wav"), start_time=0.0, end_time=10.0, chunk_index=0
+    )
+    detector = MagicMock(spec=SpeechDetector)
+    detector.detect_speech.side_effect = RuntimeError("API down")
+    transcriber = MagicMock(spec=Transcriber)
+    diarizer = MagicMock(spec=Diarizer)
+
+    with pytest.raises(RuntimeError, match="API down"):
+        _process_single_chunk(chunk, detector, transcriber, diarizer)
+
+
+def test_process_single_chunk_validation_error(tmp_path: Path) -> None:
+    chunk = AudioChunk(
+        chunk_filepath=str(tmp_path / "test.wav"), start_time=0.0, end_time=10.0, chunk_index=0
+    )
+    detector = MagicMock(spec=SpeechDetector)
+    detector.detect_speech.side_effect = ValueError("Invalid inputs")
+    transcriber = MagicMock(spec=Transcriber)
+    diarizer = MagicMock(spec=Diarizer)
+
+    with pytest.raises(ValueError, match="Invalid inputs"):
+        _process_single_chunk(chunk, detector, transcriber, diarizer)
+
+
+def test_process_single_chunk_unexpected_error(tmp_path: Path) -> None:
+    chunk = AudioChunk(
+        chunk_filepath=str(tmp_path / "test.wav"), start_time=0.0, end_time=10.0, chunk_index=0
+    )
+    detector = MagicMock(spec=SpeechDetector)
+    detector.detect_speech.side_effect = TypeError("Something totally weird")
+    transcriber = MagicMock(spec=Transcriber)
+    diarizer = MagicMock(spec=Diarizer)
+
+    with pytest.raises(
+        RuntimeError,
+        match="Unexpected failure in pipeline processing chunk 0: Something totally weird",
+    ):
+        _process_single_chunk(chunk, detector, transcriber, diarizer)

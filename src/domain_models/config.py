@@ -60,9 +60,10 @@ def _get_secret(key_name: str) -> str:
     import logging
 
     logger = logging.getLogger(__name__)
-    logger.debug("Missing required configuration secret: %s", key_name)
+    logger.error("Missing required configuration secret: %s", key_name)
 
-    raise ValueError(ERROR_MSG_MISSING_SECRET)
+    msg = f"{ERROR_MSG_MISSING_SECRET}: {key_name}"
+    raise ValueError(msg)
 
 
 class PipelineConfig(BaseSettings):
@@ -115,4 +116,38 @@ class PipelineConfig(BaseSettings):
     )
     transcriber_temperature: tuple[float, float] = Field(
         default=TRANSCRIBER_TEMPERATURE_DEFAULT, description=TRANSCRIBER_TEMPERATURE_DESCRIPTION
+    )
+
+    # Architectural Module Injection Paths
+    drive_client_module_path: str = Field(
+        default="meetingnoter.ingestion.drive_client",
+        description="Path to Drive Client implementation.",
+    )
+    chunker_module_path: str = Field(
+        default="meetingnoter.processing.chunker",
+        description="Path to Audio Splitter implementation.",
+    )
+    vad_module_path: str = Field(
+        default="meetingnoter.processing.vad", description="Path to VAD implementation."
+    )
+    transcriber_module_path: str = Field(
+        default="meetingnoter.processing.transcriber",
+        description="Path to Transcriber implementation.",
+    )
+    diarizer_module_path: str = Field(
+        default="meetingnoter.processing.diarizer", description="Path to Diarizer implementation."
+    )
+
+    # Process Hyperparameters
+    chunk_length_minutes: int = Field(
+        default=20, description="Audio segment split length to prevent Pyannote OOM."
+    )
+    vad_threshold: float = Field(
+        default=0.5, description="Probability threshold for speech detection."
+    )
+    vad_min_speech_duration_ms: int = Field(
+        default=250, description="Minimum length of a speech segment to recognize."
+    )
+    vad_min_silence_duration_ms: int = Field(
+        default=1000, description="Minimum length of silence to split phrases."
     )
