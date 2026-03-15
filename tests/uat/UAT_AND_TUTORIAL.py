@@ -172,9 +172,13 @@ def cell_tests_c03(mo: Any) -> tuple[Callable[[], Any], Any]:
             chunker = FFmpegChunker(chunk_length_minutes=1)
             chunks: list[AudioChunk] = chunker.split(source)
 
-            output_msg = f"**Cycle 03 Chunker Passed!**\n\nGenerated {len(chunks)} chunks successfully.\n\n"
+            output_msg = (
+                f"**Cycle 03 Chunker Passed!**\n\nGenerated {len(chunks)} chunks successfully.\n\n"
+            )
             for chunk in chunks:
-                output_msg += f"- Chunk {chunk.chunk_index}: {chunk.start_time}s to {chunk.end_time}s\n"
+                output_msg += (
+                    f"- Chunk {chunk.chunk_index}: {chunk.start_time}s to {chunk.end_time}s\n"
+                )
 
             return mo.md(output_msg)
         except Exception as e:

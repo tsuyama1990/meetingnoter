@@ -21,7 +21,7 @@ src/domain_models/audio.py              27      0   100%
 src/domain_models/config.py             18      0   100%
 src/domain_models/interfaces.py         13      0   100%
 src/domain_models/transcription.py      38      0   100%
-src/meetingnoter/processing/vad.py     135     31    77%   13-15, 54-55, 69, 86-87, 93-95, 103-107, 129-130, 146, 153-154, 175, 177-179, 183-184, 191-193, 197-198
+src/meetingnoter/processing/vad.py     184     58    68%   14-16, 49-50, 68-69, 86-87, 102, 108-109, 125-132, 142-148, 172-173, 189, 196-197, 207-216, 223, 227-229, 232-233, 236-237, 240-241, 244-245, 265-266, 269-273, 279, 283-284
 ------------------------------------------------------------------
-TOTAL                                  236     31    87%
-================= 31 passed, 1 skipped, 2 deselected in 5.19s ==================
+TOTAL                                  285     58    80%
+================= 31 passed, 1 skipped, 2 deselected in 5.68s ==================

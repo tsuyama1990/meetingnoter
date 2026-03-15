@@ -8,23 +8,23 @@ from domain_models import AudioChunk
 from meetingnoter.processing.vad import SileroVADDetector
 
 
-@patch("pathlib.Path.is_relative_to", return_value=True)
-def test_silero_vad_init_validation(mock_is_rel: MagicMock) -> None:
-    vad = SileroVADDetector(min_silence_duration_ms=500, model_path="dummy.jit")
+def test_silero_vad_init_validation(tmp_path: Path) -> None:
+    model_path = tmp_path / "dummy.jit"
+    model_path.touch()
+
+    vad = SileroVADDetector(min_silence_duration_ms=500, model_path=str(model_path))
     assert vad.config.min_silence_duration_ms == 500
 
-    vad = SileroVADDetector(min_silence_duration_ms=1000, model_path="dummy.jit")
+    vad = SileroVADDetector(min_silence_duration_ms=1000, model_path=str(model_path))
     assert vad.config.min_silence_duration_ms == 1000
 
     with pytest.raises(ValueError, match="min_silence_duration_ms"):
-        SileroVADDetector(min_silence_duration_ms=2000, model_path="dummy.jit")
+        SileroVADDetector(min_silence_duration_ms=2000, model_path=str(model_path))
 
     with pytest.raises(ValueError, match="min_silence_duration_ms"):
-        SileroVADDetector(min_silence_duration_ms=499, model_path="dummy.jit")
+        SileroVADDetector(min_silence_duration_ms=499, model_path=str(model_path))
 
 
-@patch("pathlib.Path.is_relative_to", return_value=True)
-@patch("pathlib.Path.stat")
 @patch("pathlib.Path.exists", return_value=True)
 @patch("torch.jit.load")
 @patch("torchaudio.load")
@@ -32,25 +32,19 @@ def test_silero_vad_detect_speech(
     mock_ta_load: MagicMock,
     mock_jit_load: MagicMock,
     mock_exists: MagicMock,
-    mock_stat: MagicMock,
-    mock_is_rel: MagicMock,
     tmp_path: Path,
 ) -> None:
     audio_file = tmp_path / "test.wav"
     audio_file.touch()
 
-    # Mock file size to be valid
-    mock_stat_obj = MagicMock()
-    mock_stat_obj.st_size = 1024
-    mock_stat.return_value = mock_stat_obj
+    model_path = tmp_path / "dummy.jit"
+    model_path.touch()
 
     chunk = AudioChunk(
         chunk_filepath=str(audio_file), start_time=10.0, end_time=20.0, chunk_index=0
     )
 
-    mock_wav = MagicMock()
-    mock_wav.shape = [1, 16000]
-    mock_wav.mean.return_value = mock_wav
+    mock_wav = torch.zeros(1, 16000)
     mock_ta_load.return_value = (mock_wav, 16000)
 
     mock_model = MagicMock()
@@ -64,26 +58,35 @@ def test_silero_vad_detect_speech(
     mock_model.return_value = mock_out
 
     # Disable hash checking for this test
-    with patch.object(SileroVADDetector, "_verify_model_integrity"):
+    with patch.object(SileroVADDetector, "_verify_and_load_model"):
         vad = SileroVADDetector(
             threshold=0.5,
             min_speech_duration_ms=250,
             min_silence_duration_ms=500,
-            model_path="dummy.jit",
+            model_path=str(model_path),
             frame_duration=0.032,
         )
+        vad.model = mock_model
 
-        segments = vad.detect_speech(chunk)
+        # Mock validate_audio_file to pass without actually parsing WAV header
+        with patch.object(vad, "_validate_audio_file"):
+            segments = vad.detect_speech(chunk)
 
         assert len(segments) == 1
         assert segments[0].start_time == 10.0 + 0.16
         assert segments[0].end_time == 10.0 + 0.672
 
 
-@patch("pathlib.Path.is_relative_to", return_value=False)
-def test_silero_vad_invalid_path(mock_is_rel: MagicMock) -> None:
-    with pytest.raises(ValueError, match="is not within allowed directories"):
-        SileroVADDetector(min_silence_duration_ms=500, model_path="/etc/passwd")
+def test_silero_vad_invalid_path(tmp_path: Path) -> None:
+    model_path = Path("/etc/passwd")
+    with pytest.raises(ValueError, match="has invalid extension"):
+        SileroVADDetector(min_silence_duration_ms=500, model_path=str(model_path))
+
+    # Fake an existing path check for testing directory containment violation
+    with patch("pathlib.Path.is_file", return_value=True):
+        model_path2 = Path("/etc/passwd.jit")
+        with pytest.raises(ValueError, match="is not within allowed directories"):
+            SileroVADDetector(min_silence_duration_ms=500, model_path=str(model_path2))
 
 
 def test_silero_vad_invalid_audio_size(tmp_path: Path) -> None:
@@ -94,15 +97,20 @@ def test_silero_vad_invalid_audio_size(tmp_path: Path) -> None:
         chunk_filepath=str(audio_file), start_time=10.0, end_time=20.0, chunk_index=0
     )
 
-    vad = SileroVADDetector(model_path="dummy.jit")
+    model_path = tmp_path / "dummy.jit"
+    model_path.touch()
+    vad = SileroVADDetector(model_path=str(model_path))
     vad.model = MagicMock()
     with patch("pathlib.Path.stat") as mock_stat:
         mock_stat_obj = MagicMock()
         mock_stat_obj.st_size = 2 * 1024 * 1024 * 1024  # 2GB
         mock_stat.return_value = mock_stat_obj
 
-        with patch.object(vad, "_load_model"), pytest.raises(ValueError, match="exceeds maximum allowed size"):
-                vad.detect_speech(chunk)
+        with (
+            patch.object(vad, "_verify_and_load_model"),
+            pytest.raises(ValueError, match="exceeds maximum allowed size"),
+        ):
+            vad.detect_speech(chunk)
 
 
 def test_silero_vad_invalid_audio_format(tmp_path: Path) -> None:
@@ -113,16 +121,24 @@ def test_silero_vad_invalid_audio_format(tmp_path: Path) -> None:
         chunk_filepath=str(audio_file), start_time=10.0, end_time=20.0, chunk_index=0
     )
 
-    vad = SileroVADDetector(model_path="dummy.jit")
+    model_path = tmp_path / "dummy.jit"
+    model_path.touch()
+    vad = SileroVADDetector(model_path=str(model_path))
     vad.model = MagicMock()
-    with patch.object(vad, "_load_model"), pytest.raises(ValueError, match="Audio format must be .wav"):
-            vad.detect_speech(chunk)
+    with (
+        patch.object(vad, "_verify_and_load_model"),
+        pytest.raises(ValueError, match="Audio format must be .wav"),
+    ):
+        vad.detect_speech(chunk)
 
 
 def test_silero_vad_hash_mismatch(tmp_path: Path) -> None:
-    model_file = tmp_path / "dummy.jit"
-    model_file.write_bytes(b"dummy model data")
+    model_path = tmp_path / "dummy.jit"
+    model_path.write_bytes(b"dummy model data")
 
-    vad = SileroVADDetector(model_path=str(model_file), model_hash="invalidhash")
+    vad = SileroVADDetector(
+        model_path=str(model_path),
+        model_hash="e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    )
     with pytest.raises(RuntimeError, match="Model checksum mismatch!"):
-        vad._load_model()
+        vad._verify_and_load_model()

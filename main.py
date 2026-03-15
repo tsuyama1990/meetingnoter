@@ -69,7 +69,9 @@ def run_pipeline(
             speech_segments: list[SpeechSegment] = detector.detect_speech(chunk)
 
             # Transcribe with faster-whisper
-            transcriptions: list[TranscriptionSegment] = transcriber.transcribe(chunk, speech_segments)
+            transcriptions: list[TranscriptionSegment] = transcriber.transcribe(
+                chunk, speech_segments
+            )
 
             # Diarize with Pyannote
             speaker_labels: list[SpeakerLabel] = diarizer.diarize(chunk)
@@ -104,7 +106,9 @@ def run_pipeline(
     return DiarizedTranscript(segments=all_segments)
 
 
-def create_components(config: PipelineConfig) -> tuple[StorageClient, AudioSplitter, SpeechDetector, Transcriber, Diarizer]:
+def create_components(
+    config: PipelineConfig,
+) -> tuple[StorageClient, AudioSplitter, SpeechDetector, Transcriber, Diarizer]:
     """Factory function to build concrete implementations for dependency injection."""
     storage: StorageClient = GoogleDriveClient(config=config)
     splitter: AudioSplitter = FFmpegChunker(ffmpeg_path=config.ffmpeg_path, chunk_length_minutes=20)

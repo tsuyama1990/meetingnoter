@@ -1,7 +1,8 @@
 import hashlib
-import typing
+import re
 from decimal import Decimal
 from pathlib import Path
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -17,25 +18,56 @@ except ImportError as e:
 
 class VADConfig(BaseModel):
     """Secure configuration model for Voice Activity Detection."""
+
     model_config = ConfigDict(extra="forbid")
 
     threshold: float = Field(default=0.5, ge=0.0, le=1.0)
+    fallback_threshold: float = Field(
+        default=0.5, ge=0.0, le=1.0, description="Minimum confidence for fallback behavior."
+    )
     min_speech_duration_ms: int = Field(default=250, ge=0)
-    min_silence_duration_ms: int = Field(default=1000, ge=500, le=1000, description="Strict Japanese nuances.")
+    min_silence_duration_ms: int = Field(
+        default=1000, ge=500, le=1000, description="Strict Japanese nuances."
+    )
     model_path: str = Field(..., min_length=1)
     model_hash: str | None = Field(default=None, description="SHA256 checksum for model integrity.")
     frame_duration: float = Field(default=0.032, gt=0.0)
+
+    # Architectural and Security Limits
+    max_model_size_bytes: int = Field(default=100 * 1024 * 1024)  # 100MB
+    max_audio_size_bytes: int = Field(default=1024 * 1024 * 1024)  # 1GB
+    max_audio_duration_seconds: int = Field(default=3600)  # 1 Hour
+    target_sample_rate: int = Field(default=16000)
 
     @field_validator("model_path")
     @classmethod
     def validate_path(cls, v: str) -> str:
         path = Path(v).resolve()
+
+        # Must exist and be a file
+        if not path.is_file():
+            msg = f"Model path {path} must be an existing file."
+            raise ValueError(msg)
+
+        # Must have valid extension
+        if path.suffix.lower() not in [".jit", ".pt"]:
+            msg = f"Model path {path} has invalid extension."
+            raise ValueError(msg)
+
         allowed_dirs = [Path.cwd(), Path(__import__("tempfile").gettempdir())]
         for d in allowed_dirs:
             if path.is_relative_to(d):
                 return str(path)
         msg = f"Path {path} is not within allowed directories: {allowed_dirs}"
         raise ValueError(msg)
+
+    @field_validator("model_hash")
+    @classmethod
+    def validate_hash(cls, v: str | None) -> str | None:
+        if v is not None and not re.match(r"^[a-fA-F0-9]{64}$", v):
+            msg = "Model hash must be a valid SHA256 hex digest."
+            raise ValueError(msg)
+        return v
 
 
 class SileroVADDetector(SpeechDetector):
@@ -54,6 +86,7 @@ class SileroVADDetector(SpeechDetector):
             msg = "A valid 'model_path' to a local Silero VAD model must be provided."
             raise ValueError(msg)
 
+        # Immediately validate the configuration via Pydantic model creation
         self.config = VADConfig(
             threshold=threshold,
             min_speech_duration_ms=min_speech_duration_ms,
@@ -62,55 +95,65 @@ class SileroVADDetector(SpeechDetector):
             model_hash=model_hash,
             frame_duration=frame_duration,
         )
-        self.model: typing.Any = None
+        self.model: Any = None
 
-    def _verify_model_integrity(self, path: Path) -> None:
-        if not self.config.model_hash:
+    def _verify_and_load_model(self) -> None:
+        if self.model is not None:
             return
 
-        sha256 = hashlib.sha256()
-        with path.open("rb") as f:
-            for block in iter(lambda: f.read(4096), b""):
-                sha256.update(block)
+        model_file = Path(self.config.model_path)
 
-        computed = sha256.hexdigest()
-        if computed != self.config.model_hash:
-            msg = f"Model checksum mismatch! Expected {self.config.model_hash}, got {computed}"
-            raise RuntimeError(msg)
+        # Verify size limit to prevent DoS on hashing
+        if model_file.stat().st_size > self.config.max_model_size_bytes:
+            msg = f"Model file exceeds {self.config.max_model_size_bytes} bytes."
+            raise ValueError(msg)
 
-    def _load_model(self) -> None:
-        if self.model is None:
-            model_file = Path(self.config.model_path)
+        # Open file securely and hold lock/handle while verifying and loading to prevent TOCTOU
+        with model_file.open("rb") as f:
+            if self.config.model_hash:
+                sha256 = hashlib.sha256()
+                # Streaming hash
+                for block in iter(lambda: f.read(8192), b""):
+                    sha256.update(block)
 
-            if not model_file.exists():
-                msg = f"Silero VAD model not found at configured path {self.config.model_path}."
-                raise FileNotFoundError(msg)
+                computed = sha256.hexdigest()
+                if computed != self.config.model_hash:
+                    msg = f"Model checksum mismatch! Expected {self.config.model_hash}, got {computed}"
+                    raise RuntimeError(msg)
 
-            self._verify_model_integrity(model_file)
+                # Reset file pointer to beginning for loading
+                f.seek(0)
 
             try:
-                self.model = torch.jit.load(self.config.model_path)  # type: ignore[no-untyped-call]
+                # Load model directly from the secure file handle
+                self.model = torch.jit.load(f)  # type: ignore[no-untyped-call]
             except Exception as e:
-                msg = f"Failed to securely load Silero VAD model from local cache: {e}"
+                msg = f"Failed to securely load Silero VAD model: {e}"
                 raise RuntimeError(msg) from e
 
-    def _merge_and_filter_chunks(self, temp_speech_chunks: list[tuple[Decimal, Decimal]]) -> list[tuple[Decimal, Decimal]]:
+    def _merge_and_filter_chunks(
+        self, temp_speech_chunks: list[tuple[Decimal, Decimal]]
+    ) -> list[tuple[Decimal, Decimal]]:
         merged_chunks: list[tuple[Decimal, Decimal]] = []
         for start, end in temp_speech_chunks:
             if not merged_chunks:
                 merged_chunks.append((start, end))
             else:
                 prev_start, prev_end = merged_chunks[-1]
-                if (start - prev_end) * Decimal("1000") < Decimal(self.config.min_silence_duration_ms):
+                if (start - prev_end) * Decimal("1000") < Decimal(
+                    self.config.min_silence_duration_ms
+                ):
                     merged_chunks[-1] = (prev_start, end)
                 else:
                     merged_chunks.append((start, end))
 
         return [
-            (s, e) for s, e in merged_chunks if (e - s) * Decimal("1000") >= Decimal(self.config.min_speech_duration_ms)
+            (s, e)
+            for s, e in merged_chunks
+            if (e - s) * Decimal("1000") >= Decimal(self.config.min_speech_duration_ms)
         ]
 
-    def _parse_probabilities(self, probs: typing.Any, chunk: AudioChunk) -> list[SpeechSegment]:
+    def _parse_probabilities(self, probs: torch.Tensor, chunk: AudioChunk) -> list[SpeechSegment]:
         segments: list[SpeechSegment] = []
         temp_speech_chunks: list[tuple[Decimal, Decimal]] = []
         is_speech: bool = False
@@ -142,7 +185,7 @@ class SileroVADDetector(SpeechDetector):
             if global_start < global_end:
                 segments.append(SpeechSegment(start_time=global_start, end_time=global_end))
 
-        if len(segments) == 0 and float(probs.mean().item()) > self.config.threshold:
+        if len(segments) == 0 and float(probs.mean().item()) > self.config.fallback_threshold:
             segments.append(SpeechSegment(start_time=chunk.start_time, end_time=chunk.end_time))
 
         return segments
@@ -157,42 +200,85 @@ class SileroVADDetector(SpeechDetector):
             msg = f"Audio format must be .wav, got {file_path.suffix}"
             raise ValueError(msg)
 
-        if file_path.stat().st_size > 1024 * 1024 * 1024: # 1GB
-            msg = f"Audio file {file_path} exceeds maximum allowed size of 1GB."
+        if file_path.stat().st_size > self.config.max_audio_size_bytes:
+            msg = f"Audio file {file_path} exceeds maximum allowed size of {self.config.max_audio_size_bytes}."
             raise ValueError(msg)
+
+        import wave
+
+        try:
+            with wave.open(str(file_path), "rb") as w:
+                if w.getnchannels() < 1 or w.getframerate() <= 0:
+                    msg = "Invalid WAV header metadata."
+                    raise ValueError(msg)
+        except wave.Error as e:
+            msg = "Corrupted or invalid WAV file content."
+            raise ValueError(msg) from e
+
+    def _load_and_sanitize_audio(self, audio_path: Path) -> torch.Tensor:
+        try:
+            with audio_path.open("rb") as f:
+                wav, sr = torchaudio.load(f)
+                if sr != self.config.target_sample_rate:
+                    wav = torchaudio.transforms.Resample(
+                        orig_freq=sr, new_freq=self.config.target_sample_rate
+                    )(wav)
+                wav = wav.mean(dim=0, keepdim=True) if wav.shape[0] > 1 else wav
+        except Exception as e:
+            msg = f"Failed to securely load or resample audio file: {e}"
+            raise RuntimeError(msg) from e
+
+        if not isinstance(wav, torch.Tensor):
+            msg = "Expected torchaudio.load to return a torch.Tensor"
+            raise TypeError(msg)
+
+        if wav.dim() != 2:
+            msg = f"Expected 2D audio tensor [channels, frames], got {wav.dim()}D"
+            raise RuntimeError(msg)
+
+        if wav.shape[1] > self.config.target_sample_rate * self.config.max_audio_duration_seconds:
+            msg = f"Audio chunk exceeds maximum allowed tensor length ({self.config.max_audio_duration_seconds}s)."
+            raise RuntimeError(msg)
+
+        if torch.isnan(wav).any() or torch.isinf(wav).any():
+            msg = "Audio tensor contains NaN or Inf values."
+            raise ValueError(msg)
+
+        return torch.clamp(wav, min=-1.0, max=1.0)
 
     def detect_speech(self, chunk: AudioChunk) -> list[SpeechSegment]:
         """Detects speech segments using Silero VAD logic."""
-        self._load_model()
+        audio_path = Path(chunk.chunk_filepath).resolve()
+
+        self._validate_audio_file(audio_path)
+        self._verify_and_load_model()
 
         if self.model:
-            audio_path = Path(chunk.chunk_filepath).resolve()
-            self._validate_audio_file(audio_path)
-
-            try:
-                wav, sr = torchaudio.load(str(audio_path))
-                if sr != 16000:
-                    wav = torchaudio.transforms.Resample(orig_freq=sr, new_freq=16000)(wav)
-                wav = wav.mean(dim=0, keepdim=True) if wav.shape[0] > 1 else wav
-            except Exception as e:
-                msg = f"Failed to securely load or resample audio file: {e}"
-                raise RuntimeError(msg) from e
-
-            # Prevent OOM/DoS by asserting waveform size limits
-            if wav.shape[1] > 16000 * 3600: # Max 1 hour of audio per chunk
-                msg = "Audio chunk exceeds maximum allowed tensor length (1 hour)."
-                raise RuntimeError(msg)
+            wav = self._load_and_sanitize_audio(audio_path)
 
             try:
                 with torch.no_grad():
                     out = self.model(wav)
                 probs = out.squeeze()
+
+                if not isinstance(probs, torch.Tensor):
+                    msg = "Model did not return a torch.Tensor"
+                    raise TypeError(msg)
+
                 segments = self._parse_probabilities(probs, chunk)
+            except TypeError:
+                raise
             except Exception as e:
                 msg = f"Silero VAD processing failed: {e}"
                 raise RuntimeError(msg) from e
-            else:
-                return segments
+            finally:
+                import gc
+
+                gc.collect()
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+
+            return segments
 
         msg = "Silero VAD model was not properly loaded."
         raise RuntimeError(msg)
