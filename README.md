@@ -38,7 +38,7 @@ export PYANNOTE_AUTH_TOKEN="your_hugging_face_token"
 export FILE_ID="your_google_drive_file_id"
 
 # Run the orchestrated pipeline
-uv run src/main.py
+uv run src/meetingnoter/pipeline.py
 ```
 
 ### Quick Start (Mock Mode)

@@ -72,20 +72,8 @@ def cell_tests(
 ]:
     from pydantic import ValidationError
 
-    from src.domain_models import (
-        AudioChunk,
-        AudioSource,
-        AudioSplitter,
-        DiarizedSegment,
-        DiarizedTranscript,
-        Diarizer,
-        SpeakerLabel,
-        SpeechDetector,
-        SpeechSegment,
-        StorageClient,
-        Transcriber,
-        TranscriptionSegment,
-    )
+    from src.meetingnoter.domain.models import AudioChunk, AudioSource, SpeechSegment, TranscriptionSegment, SpeakerLabel, DiarizedSegment, DiarizedTranscript
+    from src.meetingnoter.domain.models import AudioSplitter, Diarizer, SpeechDetector, StorageClient, Transcriber
 
     import typing as _typing
 
@@ -176,7 +164,7 @@ def cell_tests_c03(mo: Any) -> tuple[Callable[[], Any], Any]:
         import wave
         from pathlib import Path
 
-        from src.domain_models import AudioChunk, AudioSource
+        from src.meetingnoter.domain.models import AudioChunk, AudioSource
 
         # Dynamically import to satisfy IoC/Anti-hardcode requirements
         chunker_module = importlib.import_module("meetingnoter.processing.chunker")
@@ -253,7 +241,7 @@ def cell_tests_c05_3(mo: Any) -> tuple[Any, ...]:
         import tempfile
         import wave
         from pathlib import Path
-        from src.domain_models import AudioChunk, PipelineConfig, SpeechSegment
+        from src.meetingnoter.domain.models import AudioChunk, PipelineConfig, SpeechSegment
         try:
             import importlib
             import importlib.util
@@ -339,7 +327,7 @@ def cell_tests_c05_4(mo: Any) -> tuple[Any, ...]:
     import typing as _typing_c05_err
 
     def test_c05_transcription_error_handling() -> _typing_c05_err.Any:
-        from src.domain_models import AudioChunk, PipelineConfig
+        from src.meetingnoter.domain.models import AudioChunk, PipelineConfig
         try:
             import importlib
 
@@ -408,8 +396,8 @@ def cell_tests_c07_2(mo: Any) -> tuple[Any, ...]:
         import tempfile
         import wave
         from pathlib import Path
-        from src.domain_models import PipelineConfig
-        from src.main import run_pipeline
+        from src.meetingnoter.domain.models import PipelineConfig
+        from src.meetingnoter.pipeline import run_pipeline
         try:
             import os
             from unittest.mock import MagicMock, patch
@@ -520,8 +508,8 @@ def cell_tests_c07_3(mo: Any) -> tuple[Any, ...]:
     import typing as _typing_c07_err
 
     def test_c07_error_handling() -> _typing_c07_err.Any:
-        from src.domain_models import PipelineConfig
-        from src.main import run_pipeline
+        from src.meetingnoter.domain.models import PipelineConfig
+        from src.meetingnoter.pipeline import run_pipeline
         try:
             import os
 
@@ -539,11 +527,11 @@ def cell_tests_c07_3(mo: Any) -> tuple[Any, ...]:
             ):
                 # Using imports from parent scope or standardizing to avoid dupes:
                 # To bypass static analysis dupe import errors we just dynamically import them if necessary or rely on `import src...`
-                import src.meetingnoter.ingestion.drive_client as _dc
-                import src.meetingnoter.processing.chunker as _ch
-                import src.meetingnoter.processing.diarizer as _di
-                import src.meetingnoter.processing.transcriber as _tr
-                import src.meetingnoter.processing.vad as _vd
+                from src.meetingnoter.ingestion.drive_client import GoogleDriveClient as _dc
+                from src.meetingnoter.processing.chunker import FFmpegChunker as _ch
+                from src.meetingnoter.processing.diarizer import PyannoteDiarizer as _di
+                from src.meetingnoter.processing.transcriber import FasterWhisperTranscriber as _tr
+                from src.meetingnoter.processing.vad import SileroVADDetector as _vd
 
                 _c07_err_storage = _dc.GoogleDriveClient(config=_config_err)
                 _c07_err_splitter = _ch.FFmpegChunker(
@@ -567,7 +555,7 @@ def cell_tests_c07_3(mo: Any) -> tuple[Any, ...]:
             )
             _c07_err_storage.http_client = _mock_http_err
 
-            import src.meetingnoter.processing.aggregator as _ag
+            from src.meetingnoter.processing.aggregator import TranscriptMerger as _ag
 
             run_pipeline(
                 storage=_c07_err_storage,
@@ -624,7 +612,7 @@ def cell_tests_c08_2(mo: Any) -> tuple[Any, ...]:
 
     def test_c08_primary_path() -> _typing_c08_primary.Any:
         try:
-            from src.domain_models import AudioChunk, SpeakerLabel, TranscriptionSegment
+            from src.meetingnoter.domain.models import AudioChunk, SpeakerLabel, TranscriptionSegment
             from src.meetingnoter.processing.aggregator import TranscriptMerger
 
             chunk = AudioChunk(
@@ -662,7 +650,7 @@ def cell_tests_c08_3(mo: Any) -> tuple[Any, ...]:
 
     def test_c08_error_handling() -> _typing_c08_err.Any:
         try:
-            from src.domain_models import AudioChunk, SpeakerLabel, TranscriptionSegment
+            from src.meetingnoter.domain.models import AudioChunk, SpeakerLabel, TranscriptionSegment
             from src.meetingnoter.processing.aggregator import TranscriptMerger
 
             chunk = AudioChunk(
@@ -708,7 +696,7 @@ Run this cell to see a mock pipeline execution where a dummy interview is chunke
 
 @app.cell
 def quick_start_execution(mo: Any) -> tuple[Any, ...]:
-    from src.domain_models import DiarizedSegment as _DiarizedSegment_qs, DiarizedTranscript as _DiarizedTranscript_qs
+    from src.meetingnoter.domain.models import DiarizedSegment as _DiarizedSegment_qs, DiarizedTranscript as _DiarizedTranscript_qs
 
     # Mock Mode
     mock_segments = [
