@@ -132,47 +132,60 @@ def cell_tests(
 
 
 @app.cell
-def cell_markdown_c02(mo: Any) -> Any:
+def cell_markdown_c03(mo: Any) -> Any:
     return mo.md(
         r"""
-        # CYCLE02 User Acceptance Testing (UAT)
+        # CYCLE03 User Acceptance Testing (UAT)
 
-        This section validates the Secure Data Ingestion component logic through test doubles to prevent actual API calls and secret exposure.
+        This section validates the Audio Preprocessing (Chunking) component natively on synthetic datasets, providing a visual demonstration of the chunking mechanism without mocking abstractions.
         """
     )
 
 
 @app.cell
-def cell_tests_c02(mo: Any) -> tuple[Callable[[], Any], Any]:
-    def test_c02_error_handling() -> Any:
-        import os
+def cell_tests_c03(mo: Any) -> tuple[Callable[[], Any], Any]:
+    def test_c03_ffmpeg_chunker() -> Any:
+        import shutil
+        import tempfile
+        import wave
+        from pathlib import Path
 
-        from domain_models import PipelineConfig
-        from meetingnoter.ingestion.drive_client import GoogleDriveClient
+        from domain_models import AudioChunk, AudioSource
+        from meetingnoter.processing.chunker import FFmpegChunker
+
+        if not shutil.which("ffmpeg"):
+            return mo.md("**Cycle 03 UAT Skipped:** FFmpeg is not installed on this system.")
+
+        with (
+            tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf,
+            wave.open(tf.name, "wb") as w,
+        ):
+            w.setnchannels(1)
+            w.setsampwidth(2)
+            w.setframerate(16000)
+            # Create 3 seconds of synthetic silence
+            w.writeframes(b"\x00" * 16000 * 2 * 3)
 
         try:
-            # Execute actual HTTP client against Google Drive API with an invalid file ID.
-            # To pass schema validation, dummy credentials are required via environment explicitly for UAT execution context.
-            os.environ["GOOGLE_API_KEY"] = "dummy_key_for_uat"
-            os.environ["PYANNOTE_AUTH_TOKEN"] = "dummy_token_for_uat"
-            os.environ["FILE_ID"] = "fake_file_id_for_testing_12345"
+            source = AudioSource(filepath=tf.name, duration_seconds=3.0)
+            # Create a chunker that splits every 1 minute (should only produce 1 chunk for 3s audio)
+            chunker = FFmpegChunker(chunk_length_minutes=1)
+            chunks: list[AudioChunk] = chunker.split(source)
 
-            config = PipelineConfig()
-            client = GoogleDriveClient(config=config)
+            output_msg = f"**Cycle 03 Chunker Passed!**\n\nGenerated {len(chunks)} chunks successfully.\n\n"
+            for chunk in chunks:
+                output_msg += f"- Chunk {chunk.chunk_index}: {chunk.start_time}s to {chunk.end_time}s\n"
 
-            # This will fail naturally due to the real API returning 400/404 for the dummy credentials.
-            client.download("fake_file_id_for_testing_12345")
+            return mo.md(output_msg)
+        except Exception as e:
+            return mo.md(f"**Cycle 03 Chunker Failed:** {e}")
+        finally:
+            Path(tf.name).unlink(missing_ok=True)
 
-            return mo.md("**Cycle 02 Error Handling Failed:** Exception was not triggered!")
-        except RuntimeError as e:
-            return mo.md(
-                f"**Cycle 02 Error Handling Passed!** Caught runtime error gracefully from actual API failure:\n```\n{e}\n```"
-            )
-
-    c02_tests_output = mo.vstack([test_c02_error_handling()])
+    c03_tests_output = mo.vstack([test_c03_ffmpeg_chunker()])
     return (
-        test_c02_error_handling,
-        c02_tests_output,
+        test_c03_ffmpeg_chunker,
+        c03_tests_output,
     )
 
 

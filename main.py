@@ -13,7 +13,6 @@ try:
 except ImportError:
     torch: Any = None  # type: ignore[no-redef]
 
-# Import the concrete implementations
 from domain_models import (
     AudioChunk,
     AudioSource,
@@ -22,11 +21,15 @@ from domain_models import (
     DiarizedTranscript,
     Diarizer,
     PipelineConfig,
+    SpeakerLabel,
     SpeechDetector,
     SpeechSegment,
     StorageClient,
     Transcriber,
+    TranscriptionSegment,
 )
+
+# Import the concrete implementations
 from meetingnoter.ingestion.drive_client import GoogleDriveClient
 from meetingnoter.processing.chunker import FFmpegChunker
 from meetingnoter.processing.diarizer import PyannoteDiarizer
@@ -66,11 +69,9 @@ def run_pipeline(
             speech_segments: list[SpeechSegment] = detector.detect_speech(chunk)
 
             # Transcribe with faster-whisper
-            from domain_models import TranscriptionSegment
             transcriptions: list[TranscriptionSegment] = transcriber.transcribe(chunk, speech_segments)
 
             # Diarize with Pyannote
-            from domain_models import SpeakerLabel
             speaker_labels: list[SpeakerLabel] = diarizer.diarize(chunk)
 
             # Aggregate results

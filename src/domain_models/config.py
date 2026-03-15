@@ -1,5 +1,5 @@
 import os
-from typing import Any
+from typing import Any, cast
 
 from pydantic import Field
 from pydantic_settings import BaseSettings
@@ -15,25 +15,28 @@ class PipelineConfig(BaseSettings):
 
     # Required Secrets fetched dynamically to prevent hardcoding or exposure
     google_api_key: str = Field(
-        default_factory=lambda: str(
+        default_factory=lambda: cast(
+            str,
             os.environ.get("GOOGLE_API_KEY")
-            or (userdata.get("GOOGLE_API_KEY") if userdata else "")
+            or (userdata.get("GOOGLE_API_KEY") if userdata else None),
         ),
         description="API key for Google Drive access",
         min_length=1,
     )
     pyannote_auth_token: str = Field(
-        default_factory=lambda: str(
+        default_factory=lambda: cast(
+            str,
             os.environ.get("PYANNOTE_AUTH_TOKEN")
-            or (userdata.get("PYANNOTE_AUTH_TOKEN") if userdata else "")
+            or (userdata.get("PYANNOTE_AUTH_TOKEN") if userdata else None),
         ),
         description="HuggingFace token for Pyannote Diarization",
         min_length=1,
     )
     file_id: str = Field(
-        default_factory=lambda: str(
+        default_factory=lambda: cast(
+            str,
             os.environ.get("FILE_ID")
-            or (userdata.get("FILE_ID") if userdata else "")
+            or (userdata.get("FILE_ID") if userdata else None),
         ),
         description="The Google Drive file ID to process",
         min_length=1,

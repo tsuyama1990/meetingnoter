@@ -4,6 +4,7 @@ from domain_models import (
     AudioChunk,
     AudioSource,
     AudioSplitter,
+    DiarizedTranscript,
     Diarizer,
     SpeakerLabel,
     SpeechDetector,
@@ -107,7 +108,6 @@ def test_pipeline_integration() -> None:
     transcriber: Transcriber = SyntheticDatasetTranscriber()
     diarizer: Diarizer = SyntheticDatasetDiarizer()
 
-    from domain_models import DiarizedTranscript
     transcript: DiarizedTranscript = run_pipeline(
         storage=storage,
         splitter=splitter,
