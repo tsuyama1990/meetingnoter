@@ -98,8 +98,16 @@ class FasterWhisperTranscriber(Transcriber):
             except Exception as e:
                 msg = f"Faster whisper transcription failed: {e}"
                 raise RuntimeError(msg) from e
-            else:
-                return result
+            finally:
+                import gc
+
+                import torch
+
+                gc.collect()
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+
+            return result
 
         msg = "Faster Whisper model was not properly loaded."
         raise RuntimeError(msg)

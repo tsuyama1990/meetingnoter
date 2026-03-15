@@ -200,12 +200,14 @@ if __name__ == "__main__":
 @app.cell
 def cell_tests_c05_1() -> tuple[object, ...]:
     import marimo as mo
+
     return (mo,)
 
 
 @app.cell
 def cell_tests_c05_2(mo: object) -> tuple[object, ...]:
     import typing as _typing
+
     mo_typed = _typing.cast(_typing.Any, mo)
     mo_typed.md(
         """
@@ -224,10 +226,14 @@ def cell_tests_c05_3() -> tuple[object, ...]:
     import tempfile
     import wave
     from pathlib import Path
-    from unittest.mock import MagicMock as _MagicMock, patch as _patch
+    from unittest.mock import MagicMock as _MagicMock
+    from unittest.mock import patch as _patch
 
-    from domain_models import AudioChunk as _AudioChunk, SpeechSegment as _SpeechSegment
-    from meetingnoter.processing.transcriber import FasterWhisperTranscriber as _FasterWhisperTranscriber
+    from domain_models import AudioChunk as _AudioChunk
+    from domain_models import SpeechSegment as _SpeechSegment
+    from meetingnoter.processing.transcriber import (
+        FasterWhisperTranscriber as _FasterWhisperTranscriber,
+    )
 
     # 1. Setup a dummy wav file
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf:
@@ -240,15 +246,10 @@ def cell_tests_c05_3() -> tuple[object, ...]:
         chunk_01_name = tf.name
 
     chunk_01 = _AudioChunk(
-        chunk_filepath=chunk_01_name,
-        start_time=10.0,
-        end_time=20.0,
-        chunk_index=0
+        chunk_filepath=chunk_01_name, start_time=10.0, end_time=20.0, chunk_index=0
     )
 
-    speech_segments_01 = [
-        _SpeechSegment(start_time=10.0, end_time=15.0)
-    ]
+    speech_segments_01 = [_SpeechSegment(start_time=10.0, end_time=15.0)]
 
     # 2. Mock FasterWhisper model so we can run this without actually downloading models
     # This is strictly for the UAT notebook happy path test without GPU
@@ -277,7 +278,10 @@ def cell_tests_c05_3() -> tuple[object, ...]:
         "no_speech_threshold": _MagicMock(),
     }
 
-    with _patch("faster_whisper.WhisperModel", return_value=mock_model_instance), _patch("inspect.signature", return_value=mock_sig):
+    with (
+        _patch("faster_whisper.WhisperModel", return_value=mock_model_instance),
+        _patch("inspect.signature", return_value=mock_sig),
+    ):
         results_01 = transcriber_01.transcribe(chunk_01, speech_segments_01)
 
     Path(chunk_01_name).unlink()
@@ -290,18 +294,18 @@ def cell_tests_c05_4() -> tuple[object, ...]:
     from unittest.mock import patch as _patch_err
 
     from domain_models import AudioChunk as _AudioChunk_err
-    from meetingnoter.processing.transcriber import FasterWhisperTranscriber as _FasterWhisperTranscriber_err
+    from meetingnoter.processing.transcriber import (
+        FasterWhisperTranscriber as _FasterWhisperTranscriber_err,
+    )
 
     transcriber_err = _FasterWhisperTranscriber_err(language="ja")
 
     chunk_err = _AudioChunk_err(
-        chunk_filepath="/path/to/nonexistent.wav",
-        start_time=0.0,
-        end_time=10.0,
-        chunk_index=0
+        chunk_filepath="/path/to/nonexistent.wav", start_time=0.0, end_time=10.0, chunk_index=0
     )
 
     import contextlib
+
     with contextlib.suppress(FileNotFoundError), _patch_err.object(transcriber_err, "_load_model"):
         # Avoid loading the real model if we can't find the file
         transcriber_err.transcribe(chunk_err, [])

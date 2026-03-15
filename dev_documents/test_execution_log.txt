@@ -3,10 +3,10 @@ platform linux -- Python 3.12.13, pytest-9.0.2, pluggy-1.6.0
 rootdir: /app
 configfile: pyproject.toml
 plugins: cov-7.0.0, anyio-4.12.1
-collected 38 items
+collected 39 items
 
 tests/unit/test_chunker.py ......                                        [ 15%]
-tests/unit/test_cycle_05.py .......                                      [ 34%]
+tests/unit/test_cycle_05.py ........                                     [ 35%]
 tests/unit/test_domain_models.py ...................                     [ 84%]
 tests/unit/test_vad.py ......                                            [100%]
 
@@ -23,8 +23,8 @@ src/domain_models/transcription.py              38      0   100%
 src/meetingnoter/__init__.py                     0      0   100%
 src/meetingnoter/ingestion/drive_client.py      46      3    93%   53, 59, 65
 src/meetingnoter/processing/chunker.py          58      5    91%   25-26, 41, 75-76
-src/meetingnoter/processing/transcriber.py      57      0   100%
+src/meetingnoter/processing/transcriber.py      62      0   100%
 src/meetingnoter/processing/vad.py             184     58    68%   14-16, 49-50, 68-69, 86-87, 102, 108-109, 125-132, 142-148, 172-173, 189, 196-197, 207-216, 223, 227-229, 232-233, 236-237, 240-241, 244-245, 265-266, 269-273, 279, 283-284
 --------------------------------------------------------------------------
-TOTAL                                          446     66    85%
-============================== 38 passed in 8.80s ==============================
+TOTAL                                          451     66    85%
+============================== 39 passed in 7.05s ==============================
