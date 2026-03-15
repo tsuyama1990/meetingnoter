@@ -1,5 +1,19 @@
+import sys
+from pathlib import Path
+
+# Fix sys.path universally for raw Python execution
+try:
+    _base_dir = Path(__file__).parent.parent
+except NameError:
+    _base_dir = Path().resolve()
+
+_src_dir = _base_dir / "src"
+if str(_src_dir) not in sys.path:
+    sys.path.insert(0, str(_src_dir))
+if str(_base_dir) not in sys.path:
+    sys.path.insert(0, str(_base_dir))
+
 from collections.abc import Callable
-from typing import Any
 from typing import Any
 
 import marimo
@@ -20,8 +34,22 @@ app = marimo.App(width="medium")
 
 @app.cell
 def cell_imports() -> tuple[Any]:
-    import marimo as mo
+    import sys
+    from pathlib import Path
 
+    # Try resolving via standard notebook directory rules
+    try:
+        base_dir = Path(__file__).parent.parent
+    except NameError:
+        base_dir = Path().resolve()
+
+    src_dir = base_dir / "src"
+    if str(src_dir) not in sys.path:
+        sys.path.insert(0, str(src_dir))
+    if str(base_dir) not in sys.path:
+        sys.path.insert(0, str(base_dir))
+
+    import marimo as mo
     return (mo,)
 
 
@@ -238,9 +266,9 @@ def cell_tests_c05_3(mo: Any) -> tuple[Any, ...]:
     import wave
     from pathlib import Path
 
-    from domain_models import AudioChunk as _AudioChunk
-    from domain_models import PipelineConfig as _PipelineConfig
-    from domain_models import SpeechSegment as _SpeechSegment
+    from src.domain_models import AudioChunk
+    from src.domain_models import PipelineConfig
+    from src.domain_models import SpeechSegment
 
     import typing as _typing_c05_real
 
@@ -272,20 +300,24 @@ def cell_tests_c05_3(mo: Any) -> tuple[Any, ...]:
                     w.writeframes(b"\x00" * 16000 * 2)
                 chunk_01_name = tf.name
 
-            chunk_01 = _AudioChunk(
+            chunk_01 = AudioChunk(
                 chunk_filepath=chunk_01_name, start_time=10.0, end_time=11.0, chunk_index=0
             )
 
-            speech_segments_01 = [_SpeechSegment(start_time=10.0, end_time=11.0)]
+            speech_segments_01 = [SpeechSegment(start_time=10.0, end_time=11.0)]
 
             import os
             from unittest.mock import patch
 
-            os.environ["GOOGLE_API_KEY"] = "test"
-            os.environ["PYANNOTE_AUTH_TOKEN"] = "test"
-            os.environ["FILE_ID"] = "test"
+            # Use patch.dict instead of hardcoding environ directly for security
+            _env_patcher = patch.dict(os.environ, {
+                "GOOGLE_API_KEY": "dummy_api_key_for_test",
+                "PYANNOTE_AUTH_TOKEN": "dummy_token_for_test",
+                "FILE_ID": "dummy_file_id_for_test"
+            })
+            _env_patcher.start()
 
-            _config = _PipelineConfig()
+            _config = PipelineConfig()
             # Use REAL Transcriber with tiny settings for tests via patch to avoid hardcoding in test file
             with (
                 patch.object(_config, "transcriber_language", "ja"),
@@ -321,8 +353,8 @@ def cell_tests_c05_3(mo: Any) -> tuple[Any, ...]:
 
 @app.cell
 def cell_tests_c05_4(mo: Any) -> tuple[Any, ...]:
-    from domain_models import AudioChunk as _AudioChunk_err
-    from domain_models import PipelineConfig as _PipelineConfig_err
+    from src.domain_models import AudioChunk
+    from src.domain_models import PipelineConfig
 
     import typing as _typing_c05_err
 
@@ -338,11 +370,14 @@ def cell_tests_c05_4(mo: Any) -> tuple[Any, ...]:
         import os
         from unittest.mock import patch
 
-        os.environ["GOOGLE_API_KEY"] = "test"
-        os.environ["PYANNOTE_AUTH_TOKEN"] = "test"
-        os.environ["FILE_ID"] = "test"
+        _env_patcher = patch.dict(os.environ, {
+            "GOOGLE_API_KEY": "dummy_api_key_for_test",
+            "PYANNOTE_AUTH_TOKEN": "dummy_token_for_test",
+            "FILE_ID": "dummy_file_id_for_test"
+        })
+        _env_patcher.start()
 
-        _config_err = _PipelineConfig_err()
+        _config_err = PipelineConfig()
         with (
             patch.object(_config_err, "transcriber_language", "ja"),
             patch.object(_config_err, "transcriber_model_size", "tiny"),
@@ -350,7 +385,7 @@ def cell_tests_c05_4(mo: Any) -> tuple[Any, ...]:
             # Use REAL Transcriber
             transcriber_err = _FasterWhisperTranscriber_err(_config_err)
 
-        chunk_err = _AudioChunk_err(
+        chunk_err = AudioChunk(
             chunk_filepath="/path/to/nonexistent.wav", start_time=0.0, end_time=10.0, chunk_index=0
         )
 
@@ -386,8 +421,8 @@ def cell_tests_c07_2(mo: Any) -> tuple[Any, ...]:
     import wave
     from pathlib import Path
 
-    from domain_models import PipelineConfig as _C07Config
-    from main import run_pipeline as _c07_run_pipeline
+    from src.domain_models import PipelineConfig
+    from main import run_pipeline
 
     import typing as _typing_c07_primary
 
@@ -398,11 +433,14 @@ def cell_tests_c07_2(mo: Any) -> tuple[Any, ...]:
 
             import requests
 
-            os.environ["GOOGLE_API_KEY"] = os.urandom(8).hex()
-            os.environ["PYANNOTE_AUTH_TOKEN"] = "hf_" + os.urandom(8).hex()
-            os.environ["FILE_ID"] = os.urandom(8).hex()
+            _env_patcher = patch.dict(os.environ, {
+                "GOOGLE_API_KEY": os.urandom(8).hex(),
+                "PYANNOTE_AUTH_TOKEN": "hf_" + os.urandom(8).hex(),
+                "FILE_ID": os.urandom(8).hex()
+            })
+            _env_patcher.start()
 
-            _config = _C07Config()
+            _config = PipelineConfig()
             with (
                 patch.object(_config, "transcriber_model_size", "tiny"),
                 patch.object(_config, "transcriber_compute_type", "int8"),
@@ -458,9 +496,9 @@ def cell_tests_c07_2(mo: Any) -> tuple[Any, ...]:
             ):
                 # Let's just run it! Real components with intercepted downloads.
                 try:
-                    from meetingnoter import TranscriptMerger
+                    from src.meetingnoter.processing.aggregator import TranscriptMerger
 
-                    _c07_transcript = _c07_run_pipeline(
+                    _c07_transcript = run_pipeline(
                         storage=_c07_storage,
                         splitter=_c07_splitter,
                         detector=_c07_detector,
@@ -494,8 +532,8 @@ def cell_tests_c07_3(mo: Any) -> tuple[Any, ...]:
 
     import requests
 
-    from domain_models import PipelineConfig as _C07ErrConfig
-    from main import run_pipeline as _c07_err_run_pipeline
+    from src.domain_models import PipelineConfig
+    from main import run_pipeline
 
     import typing as _typing_c07_err
 
@@ -503,11 +541,14 @@ def cell_tests_c07_3(mo: Any) -> tuple[Any, ...]:
         try:
             import os
 
-            os.environ["GOOGLE_API_KEY"] = os.urandom(8).hex()
-            os.environ["PYANNOTE_AUTH_TOKEN"] = "hf_" + os.urandom(8).hex()
-            os.environ["FILE_ID"] = os.urandom(8).hex()
+            _env_patcher = patch.dict(os.environ, {
+                "GOOGLE_API_KEY": os.urandom(8).hex(),
+                "PYANNOTE_AUTH_TOKEN": "hf_" + os.urandom(8).hex(),
+                "FILE_ID": os.urandom(8).hex()
+            })
+            _env_patcher.start()
 
-            _config_err = _C07ErrConfig()
+            _config_err = PipelineConfig()
             with (
                 patch.object(_config_err, "transcriber_model_size", "tiny"),
                 patch.object(_config_err, "transcriber_compute_type", "int8"),
@@ -540,9 +581,9 @@ def cell_tests_c07_3(mo: Any) -> tuple[Any, ...]:
             )
             _c07_err_storage.http_client = _mock_http_err
 
-            from meetingnoter import TranscriptMerger
+            from src.meetingnoter.processing.aggregator import TranscriptMerger
 
-            _c07_err_run_pipeline(
+            run_pipeline(
                 storage=_c07_err_storage,
                 splitter=_c07_err_splitter,
                 detector=_c07_err_detector,
@@ -597,8 +638,8 @@ def cell_tests_c08_2(mo: Any) -> tuple[Any, ...]:
 
     def test_c08_primary_path() -> _typing_c08_primary.Any:
         try:
-            from domain_models import AudioChunk, SpeakerLabel, TranscriptionSegment
-            from meetingnoter import TranscriptMerger
+            from src.domain_models import AudioChunk, SpeakerLabel, TranscriptionSegment
+            from src.meetingnoter.processing.aggregator import TranscriptMerger
 
             chunk = AudioChunk(
                 chunk_filepath="sample_chunk_1.wav",
@@ -635,8 +676,8 @@ def cell_tests_c08_3(mo: Any) -> tuple[Any, ...]:
 
     def test_c08_error_handling() -> _typing_c08_err.Any:
         try:
-            from domain_models import AudioChunk, SpeakerLabel, TranscriptionSegment
-            from meetingnoter import TranscriptMerger
+            from src.domain_models import AudioChunk, SpeakerLabel, TranscriptionSegment
+            from src.meetingnoter.processing.aggregator import TranscriptMerger
 
             chunk = AudioChunk(
                 chunk_filepath="sample_chunk_1.wav",
@@ -684,7 +725,7 @@ Run this cell to see a mock pipeline execution where a dummy interview is chunke
 def quick_start_execution(mo: Any) -> tuple[Any, ...]:
     from typing import Any
     import os
-    from domain_models import DiarizedSegment, DiarizedTranscript
+    from src.domain_models import DiarizedSegment, DiarizedTranscript
 
     # Mock Mode
     mock_segments = [
