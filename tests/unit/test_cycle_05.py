@@ -2,7 +2,6 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-import requests
 
 from domain_models import (
     AudioChunk,
@@ -430,6 +429,7 @@ def test_transcriber_cleanup_resources_torch_cuda_empty_cache() -> None:
 
 class FailingSyntheticStorageClient(StorageClient):
     """A clean synthetic double that simulates a network failure on download."""
+
     def download(self, file_id: str) -> AudioSource:
         msg = "Network Error"
         raise RuntimeError(msg)
@@ -445,6 +445,7 @@ class SyntheticDatasetAudioSplitter(AudioSplitter):
                 chunk_index=0,
             )
         ]
+
 
 def test_pipeline_orchestration_cleanup_on_download_fail(tmp_path: Path) -> None:
     # Arrange
@@ -462,7 +463,7 @@ def test_pipeline_orchestration_cleanup_on_download_fail(tmp_path: Path) -> None
             detector=detector,
             transcriber=transcriber,
             diarizer=diarizer,
-            file_id="test_id"
+            file_id="test_id",
         )
     # The source file was never created, so we don't assert deletion,
     # but we ensure the code safely passed the finally block without error.
@@ -495,7 +496,7 @@ def test_pipeline_orchestration_cleanup_on_chunking_fail(tmp_path: Path) -> None
             detector=detector,
             transcriber=transcriber,
             diarizer=diarizer,
-            file_id="test_id"
+            file_id="test_id",
         )
     # Ensure source was cleaned up in the finally block
     assert not (tmp_path / "source.wav").exists()
@@ -540,7 +541,7 @@ def test_pipeline_orchestration_cleanup_on_processing_fail(tmp_path: Path) -> No
             detector=detector,
             transcriber=transcriber,
             diarizer=diarizer,
-            file_id="test_id"
+            file_id="test_id",
         )
     # Ensure all temp files were cleaned up
     assert not (tmp_path / "source.wav").exists()
@@ -549,18 +550,22 @@ def test_pipeline_orchestration_cleanup_on_processing_fail(tmp_path: Path) -> No
 
 
 def test_process_single_chunk_network_error(tmp_path: Path) -> None:
-    chunk = AudioChunk(chunk_filepath=str(tmp_path / "test.wav"), start_time=0.0, end_time=10.0, chunk_index=0)
+    chunk = AudioChunk(
+        chunk_filepath=str(tmp_path / "test.wav"), start_time=0.0, end_time=10.0, chunk_index=0
+    )
     detector = MagicMock(spec=SpeechDetector)
-    detector.detect_speech.side_effect = requests.exceptions.RequestException("API down")
+    detector.detect_speech.side_effect = RuntimeError("API down")
     transcriber = MagicMock(spec=Transcriber)
     diarizer = MagicMock(spec=Diarizer)
 
-    with pytest.raises(requests.exceptions.RequestException, match="API down"):
+    with pytest.raises(RuntimeError, match="API down"):
         _process_single_chunk(chunk, detector, transcriber, diarizer)
 
 
 def test_process_single_chunk_validation_error(tmp_path: Path) -> None:
-    chunk = AudioChunk(chunk_filepath=str(tmp_path / "test.wav"), start_time=0.0, end_time=10.0, chunk_index=0)
+    chunk = AudioChunk(
+        chunk_filepath=str(tmp_path / "test.wav"), start_time=0.0, end_time=10.0, chunk_index=0
+    )
     detector = MagicMock(spec=SpeechDetector)
     detector.detect_speech.side_effect = ValueError("Invalid inputs")
     transcriber = MagicMock(spec=Transcriber)
@@ -569,12 +574,18 @@ def test_process_single_chunk_validation_error(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="Invalid inputs"):
         _process_single_chunk(chunk, detector, transcriber, diarizer)
 
+
 def test_process_single_chunk_unexpected_error(tmp_path: Path) -> None:
-    chunk = AudioChunk(chunk_filepath=str(tmp_path / "test.wav"), start_time=0.0, end_time=10.0, chunk_index=0)
+    chunk = AudioChunk(
+        chunk_filepath=str(tmp_path / "test.wav"), start_time=0.0, end_time=10.0, chunk_index=0
+    )
     detector = MagicMock(spec=SpeechDetector)
     detector.detect_speech.side_effect = TypeError("Something totally weird")
     transcriber = MagicMock(spec=Transcriber)
     diarizer = MagicMock(spec=Diarizer)
 
-    with pytest.raises(RuntimeError, match="Unexpected failure in pipeline processing chunk 0: Something totally weird"):
+    with pytest.raises(
+        RuntimeError,
+        match="Unexpected failure in pipeline processing chunk 0: Something totally weird",
+    ):
         _process_single_chunk(chunk, detector, transcriber, diarizer)

@@ -49,8 +49,6 @@ def _process_single_chunk(
     diarizer: Diarizer,
 ) -> list[DiarizedSegment]:
     """Processes a single chunk to manage memory strictly."""
-    import requests
-
     from domain_models import SpeakerLabel, SpeechSegment, TranscriptionSegment
 
     try:
@@ -85,12 +83,6 @@ def _process_single_chunk(
                 "Runtime error processing chunk %d. Aborting pipeline.", chunk.chunk_index
             )
         raise
-    except requests.exceptions.RequestException:
-        logger.exception(
-            "Network or authentication failure processing chunk %d. Aborting pipeline.",
-            chunk.chunk_index,
-        )
-        raise
     except ValueError:
         logger.exception(
             "Validation error processing chunk %d. Aborting pipeline.", chunk.chunk_index
@@ -104,11 +96,16 @@ def _process_single_chunk(
         return segments
     finally:
         # Clear GPU memory after each heavy chunk to prevent OOM
-        import gc
+        _cleanup_memory()
 
-        gc.collect()
-        if torch is not None and torch.cuda.is_available():
-            torch.cuda.empty_cache()
+
+def _cleanup_memory() -> None:
+    """Centralized resource manager for explicit memory scrubbing."""
+    import gc
+
+    gc.collect()
+    if torch is not None and torch.cuda.is_available():
+        torch.cuda.empty_cache()
 
 
 def run_pipeline(
@@ -171,7 +168,6 @@ def main() -> None:
     """Main entry point to execute the pipeline using concrete implementations."""
     # 1. Resolve and validate configuration
     import pydantic
-    import requests
 
     try:
         config: PipelineConfig = get_config()
@@ -199,11 +195,8 @@ def main() -> None:
             diarizer=diarizer,
             file_id=config.file_id,
         )
-    except requests.exceptions.RequestException:
-        logger.exception("Pipeline execution failed due to network connectivity.")
-        sys.exit(1)
     except RuntimeError:
-        logger.exception("Pipeline execution failed due to unexpected runtime error.")
+        logger.exception("Pipeline execution failed due to an error.")
         sys.exit(1)
     else:
         logger.info(
