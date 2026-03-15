@@ -1,39 +1,49 @@
 # MeetingNoter
 
-MeetingNoter is a highly secure, privacy-preserving voice analysis and speaker diarization pipeline specifically designed for the rigorous demands of qualitative research processes.
+## Overview
+MeetingNoter is a highly secure, privacy-preserving voice analysis and speaker diarization pipeline. It is specifically engineered to safely transcribe and diarize highly sensitive conversational data, such as Customer Problem Fit (CPF) interviews, without transmitting any audio to commercial third-party Speech-to-Text (STT) APIs like Google Cloud Speech or OpenAI Whisper API.
 
-It provides robust, highly accurate Speech-to-Text transcription and speaker recognition capabilities while running fully locally (or inside an ephemeral Google Colab instance). The strict zero-commercial-API architecture ensures that highly sensitive audio data, including Personal Identifiable Information (PII) and corporate secrets, never leaves your environment.
+By running open-source foundation models (Whisper, Silero VAD, Pyannote.audio) locally, MeetingNoter completely eliminates the risk of PII leakage while ensuring zero-marginal-cost processing.
 
 ## Features
-- **Pydantic-driven Core Schema**: Strong typing and validations enforce strict boundaries for parsing audio chunks, speech segments, transcripts, and speaker labels.
-- **Secure Architecture Framework**: Defines strict abstractions (`StorageClient`, `AudioSplitter`, `SpeechDetector`, `Transcriber`, `Diarizer`) to plug in models and clients without mixing concerns.
-- **Secure Data Ingestion**: Provides an implementation of the `GoogleDriveClient` that automatically retrieves credentials via dependency injection and robustly downloads audio data into temporary scratch spaces without persisting them insecurely.
-- **End-to-End Orchestration**: A robust `run_pipeline` function strictly handles chunking, voice activity detection, transcription, diarization, and aggregation while enforcing GPU memory garbage collection to prevent Out-Of-Memory (OOM) crashes on constrained environments like free Google Colab tiers.
-- **Audio Chunking without Re-encoding**: Securely and predictably slices large audio files into smaller segments using FFmpeg, avoiding OOM errors natively while perfectly preserving raw audio quality without unnecessary re-encoding operations.
+- **Secure Processing:** Runs entirely locally, ensuring sensitive audio data never leaves your environment.
+- **Robust Ingestion:** Securely downloads audio files directly from Google Drive.
+- **Memory-Efficient Processing:** Automatically chunks long audio files using FFmpeg to prevent Out-Of-Memory (OOM) crashes, enabling the processing of hour-long interviews on standard hardware.
+- **Voice Activity Detection (VAD) Gating:** Uses Silero VAD to detect speech segments, mathematically eliminating Whisper's hallucination loops during silent periods.
+- **High-Accuracy Transcription:** Utilizes the highly optimized `faster-whisper` engine (CTranslate2) with specific configurations for the Japanese language to prevent data loss.
 
 ## Installation
 
-Ensure you have `uv` installed, then run the following to install all required dependencies:
+Ensure you have Python 3.12+ and `uv` installed.
 
 ```bash
+# Install dependencies
 uv sync
+
+# Ensure ffmpeg is installed on your system
+# (e.g., sudo apt install ffmpeg OR brew install ffmpeg)
 ```
 
 ## Usage
 
-(Note: This pipeline is currently undergoing early development. Currently implemented are the core schemas, abstractions, secure ingestion, audio chunking, and the main orchestrator.)
-
-To perform interactive testing of the data schemas, data ingestion logic, and audio preprocessing, run the User Acceptance Testing tutorial using Marimo:
+MeetingNoter is currently in development. You can verify the pipeline components using the included test suite.
 
 ```bash
+# Run the test suite
+uv run pytest
+```
+
+### Interactive UAT Notebook
+
+An interactive tutorial and User Acceptance Testing (UAT) notebook is available using Marimo.
+
+```bash
+# Run the UAT notebook
 PYTHONPATH=src uv run marimo edit tests/uat/UAT_AND_TUTORIAL.py
 ```
 
-## Project Structure
-
-- `src/domain_models/`: Core Pydantic schemas and interface protocols defining the entire project's contract boundaries.
-- `src/meetingnoter/ingestion/`: Ingestion components like `drive_client.py` for downloading files securely.
-- `src/main.py`: The main orchestrator connecting components and managing chunking logic.
-- `tests/unit/`: Unit tests for domain models and mock protocols.
-- `tests/e2e/`: End-to-end integration tests simulating a full pipeline run.
-- `tests/uat/`: Interactive User Acceptance Testing scripts built with `marimo`.
+## Structure
+- `src/domain_models/`: Pydantic-based data contracts and protocol interfaces.
+- `src/meetingnoter/ingestion/`: Modules for securely downloading audio data.
+- `src/meetingnoter/processing/`: Core processing logic (chunking, VAD, transcription).
+- `tests/`: Unit, integration, and UAT test suites.

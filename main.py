@@ -63,6 +63,8 @@ def run_pipeline(
     all_segments: list[DiarizedSegment] = []
 
     # 3. Process each chunk
+    import requests
+
     for chunk in chunks:
         try:
             # VAD gating
@@ -86,10 +88,32 @@ def run_pipeline(
                         speaker_id=s.speaker_id,
                     )
                 )
-        except Exception:
+        except RuntimeError as e:
+            if "CUDA out of memory" in str(e):
+                logger.exception(
+                    "Resource exhaustion (OOM) encountered processing chunk %d. Aborting pipeline.",
+                    chunk.chunk_index,
+                )
+            else:
+                logger.exception(
+                    "Runtime error processing chunk %d. Aborting pipeline.", chunk.chunk_index
+                )
+            raise
+        except requests.exceptions.RequestException:
             logger.exception(
-                "Failed to process chunk %d. Skipping and continuing.", chunk.chunk_index
+                "Network or authentication failure processing chunk %d. Aborting pipeline.",
+                chunk.chunk_index,
             )
+            raise
+        except ValueError:
+            logger.exception(
+                "Validation error processing chunk %d. Aborting pipeline.", chunk.chunk_index
+            )
+            raise
+        except Exception as e:
+            # Re-raise unexpected exceptions to fail fast
+            msg = f"Unexpected failure in pipeline processing chunk {chunk.chunk_index}: {e}"
+            raise RuntimeError(msg) from e
         finally:
             # Clear GPU memory after each heavy chunk to prevent OOM
             import gc
@@ -118,14 +142,7 @@ def create_components(
         min_silence_duration_ms=1000,
         model_path=config.silero_vad_model_path,
     )
-    transcriber: Transcriber = FasterWhisperTranscriber(
-        model_size="large-v3",
-        compute_type="int8",
-        language=str(config.transcriber_language),
-        vad_filter=bool(config.transcriber_vad_filter),
-        condition_on_previous_text=bool(config.transcriber_condition_on_previous_text),
-        temperature=list(config.transcriber_temperature),
-    )
+    transcriber: Transcriber = FasterWhisperTranscriber(config)
     diarizer: Diarizer = PyannoteDiarizer(auth_token=config.pyannote_auth_token)
     return storage, splitter, detector, transcriber, diarizer
 
@@ -133,17 +150,23 @@ def create_components(
 def main() -> None:
     """Main entry point to execute the pipeline using concrete implementations."""
     # 1. Resolve and validate configuration
+    import pydantic
+    import requests
+
     try:
         config: PipelineConfig = get_config()
-    except Exception:
-        logger.exception("Configuration validation failed")
+    except pydantic.ValidationError:
+        logger.exception("Configuration validation failed due to invalid schema.")
+        sys.exit(1)
+    except ValueError:
+        logger.exception("Configuration validation failed due to missing secrets.")
         sys.exit(1)
 
     # 2. Initialize concrete implementations using Dependency Injection via Factory
     try:
         storage, splitter, detector, transcriber, diarizer = create_components(config)
-    except Exception:
-        logger.exception("Failed to initialize pipeline components")
+    except RuntimeError:
+        logger.exception("Failed to dynamically initialize pipeline dependencies.")
         sys.exit(1)
 
     # 3. Execute pipeline
@@ -160,8 +183,11 @@ def main() -> None:
             "Pipeline finished successfully. Generated %d diarized segments.",
             len(transcript.segments),
         )
-    except Exception:
-        logger.exception("Pipeline execution failed")
+    except requests.exceptions.RequestException:
+        logger.exception("Pipeline execution failed due to network connectivity.")
+        sys.exit(1)
+    except RuntimeError:
+        logger.exception("Pipeline execution failed due to unexpected runtime error.")
         sys.exit(1)
 
 
