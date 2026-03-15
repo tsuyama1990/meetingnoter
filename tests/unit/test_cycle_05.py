@@ -306,8 +306,8 @@ def test_transcriber_invalid_path_relative() -> None:
 
     with (
         patch("pathlib.Path.is_file", return_value=True),
-        patch("pathlib.Path.is_relative_to", return_value=False),
-        pytest.raises(ValueError, match="is not within allowed directories"),
+        patch("pathlib.Path.is_symlink", return_value=True),
+        pytest.raises(ValueError, match="is a symlink, which is not permitted."),
     ):
         transcriber._validate_audio_file(Path("/etc/passwd"))
 

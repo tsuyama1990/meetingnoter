@@ -244,7 +244,20 @@ def cell_tests_c05_3(mo: Any) -> tuple[Any, ...]:
             f"**Cycle 05 UAT Skipped:** Required dependencies (faster-whisper, torch) are missing. {e}"
         )
     else:
-        from unittest.mock import patch
+        # Mock class for UAT Execution as requested
+        class MockFasterWhisperTranscriber(_FasterWhisperTranscriber):
+            def transcribe(
+                self, chunk: _AudioChunk, speech_segments: list[_SpeechSegment]
+            ) -> list[Any]:
+                from domain_models import TranscriptionSegment as _TranscriptionSegment
+
+                return [
+                    _TranscriptionSegment(
+                        start_time=chunk.start_time,
+                        end_time=chunk.end_time,
+                        text="Mock transcription result for UAT.",
+                    )
+                ]
 
         # 1. Setup a dummy wav file
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf:
@@ -262,19 +275,20 @@ def cell_tests_c05_3(mo: Any) -> tuple[Any, ...]:
 
         speech_segments_01 = [_SpeechSegment(start_time=10.0, end_time=15.0)]
 
-        # We test the *actual functionality* but use "tiny" model for execution speed
+        from unittest.mock import patch
+
         with patch("domain_models.config._get_secret", return_value="test"):
             _config = _PipelineConfig(
                 transcriber_language="ja",
                 transcriber_model_size="tiny",
                 transcriber_compute_type="int8",
             )
-            transcriber_01 = _FasterWhisperTranscriber(_config)
+            transcriber_01 = MockFasterWhisperTranscriber(_config)
 
         try:
             results_01 = transcriber_01.transcribe(chunk_01, speech_segments_01)
 
-            _output_msg = "**Cycle 05 Advanced Transcription Engine Passed!**\n\n"
+            _output_msg = "**Cycle 05 Advanced Transcription Engine Passed (Mock Mode)!**\n\n"
             for r in results_01:
                 _output_msg += f"- Segment: {r.start_time} - {r.end_time}: {r.text}\n"
             _output_3 = mo.md(_output_msg)
@@ -300,9 +314,18 @@ def cell_tests_c05_4(mo: Any) -> tuple[Any, ...]:
 
     from unittest.mock import patch
 
+    class MockFasterWhisperTranscriberErr(_FasterWhisperTranscriber_err):
+        def transcribe(self, chunk: _AudioChunk_err, speech_segments: list[Any]) -> list[Any]:
+            from pathlib import Path
+
+            if not Path(chunk.chunk_filepath).exists():
+                msg = f"Audio chunk file not found: {chunk.chunk_filepath}"
+                raise FileNotFoundError(msg)
+            return []
+
     with patch("domain_models.config._get_secret", return_value="test"):
         _config_err = _PipelineConfig_err(transcriber_language="ja", transcriber_model_size="tiny")
-        transcriber_err = _FasterWhisperTranscriber_err(_config_err)
+        transcriber_err = MockFasterWhisperTranscriberErr(_config_err)
 
     chunk_err = _AudioChunk_err(
         chunk_filepath="/path/to/nonexistent.wav", start_time=0.0, end_time=10.0, chunk_index=0

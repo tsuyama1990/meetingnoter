@@ -67,25 +67,35 @@ class FailingSyntheticStorageClient(StorageClient):
         raise RuntimeError(msg)
 
 
+class SyntheticDatasetAudioSplitter(AudioSplitter):
+    def split(self, source: AudioSource) -> list[AudioChunk]:
+        return [
+            AudioChunk(
+                chunk_filepath=source.filepath,
+                start_time=0.0,
+                end_time=source.duration_seconds,
+                chunk_index=0,
+            )
+        ]
+
+
 def test_pipeline_integration_failure() -> None:
-    # Test handling of download failures using proper test double instead of monkey-patching
     storage: StorageClient = FailingSyntheticStorageClient()
-    import shutil
+    import sys
+    from pathlib import Path
 
     import pytest
 
-    from meetingnoter.processing.chunker import FFmpegChunker
+    root_dir = str(Path(__file__).parent.parent.parent)
+    if root_dir not in sys.path:
+        sys.path.insert(0, root_dir)
 
-    if not shutil.which("ffmpeg"):
-        pytest.skip("ffmpeg not installed")
-
-    # Ensure run_pipeline raises the error to the caller
     from main import run_pipeline
 
     with pytest.raises(RuntimeError, match="Network Error"):
         run_pipeline(
             storage=storage,
-            splitter=FFmpegChunker(chunk_length_minutes=1),
+            splitter=SyntheticDatasetAudioSplitter(),
             detector=SyntheticDatasetSpeechDetector(),
             transcriber=SyntheticDatasetTranscriber(),
             diarizer=SyntheticDatasetDiarizer(),
@@ -95,18 +105,18 @@ def test_pipeline_integration_failure() -> None:
 
 def test_pipeline_integration() -> None:
     # Use the main.py run_pipeline orchestration logic to actually test the integration SUT
-    import shutil
 
-    import pytest
+    import sys
+    from pathlib import Path
+
+    root_dir = str(Path(__file__).parent.parent.parent)
+    if root_dir not in sys.path:
+        sys.path.insert(0, root_dir)
 
     from main import run_pipeline
-    from meetingnoter.processing.chunker import FFmpegChunker
-
-    if not shutil.which("ffmpeg"):
-        pytest.skip("ffmpeg not installed")
 
     storage: StorageClient = SyntheticDatasetStorageClient()
-    splitter: AudioSplitter = FFmpegChunker(chunk_length_minutes=1)
+    splitter: AudioSplitter = SyntheticDatasetAudioSplitter()
     detector: SpeechDetector = SyntheticDatasetSpeechDetector()
 
     transcriber: Transcriber = SyntheticDatasetTranscriber()

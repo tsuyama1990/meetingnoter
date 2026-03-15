@@ -41,11 +41,6 @@ class FasterWhisperTranscriber(Transcriber):
             msg = f"Audio chunk file not found: {path}"
             raise FileNotFoundError(msg)
 
-        allowed_dirs = [Path.cwd(), Path(__import__("tempfile").gettempdir())]
-        if not any(path.is_relative_to(d) for d in allowed_dirs):
-            msg = f"Audio path {path} is not within allowed directories."
-            raise ValueError(msg)
-
     def _load_model(self) -> None:
         if self.model is None:
             try:

@@ -91,19 +91,28 @@ def run_pipeline(
         except RuntimeError as e:
             if "CUDA out of memory" in str(e):
                 logger.exception(
-                    "Resource exhaustion (OOM) encountered processing chunk %d", chunk.chunk_index
+                    "Resource exhaustion (OOM) encountered processing chunk %d. Aborting pipeline.",
+                    chunk.chunk_index,
                 )
             else:
-                logger.exception("Runtime error processing chunk %d", chunk.chunk_index)
+                logger.exception(
+                    "Runtime error processing chunk %d. Aborting pipeline.", chunk.chunk_index
+                )
+            raise
         except requests.exceptions.RequestException:
             logger.exception(
-                "Network or authentication failure processing chunk %d", chunk.chunk_index
+                "Network or authentication failure processing chunk %d. Aborting pipeline.",
+                chunk.chunk_index,
             )
+            raise
         except ValueError:
-            logger.exception("Validation error processing chunk %d", chunk.chunk_index)
+            logger.exception(
+                "Validation error processing chunk %d. Aborting pipeline.", chunk.chunk_index
+            )
+            raise
         except Exception as e:
             # Re-raise unexpected exceptions to fail fast
-            msg = f"Unexpected failure in pipeline: {e}"
+            msg = f"Unexpected failure in pipeline processing chunk {chunk.chunk_index}: {e}"
             raise RuntimeError(msg) from e
         finally:
             # Clear GPU memory after each heavy chunk to prevent OOM
