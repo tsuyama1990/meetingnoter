@@ -1,32 +1,13 @@
 import os
+from typing import Any, cast
 
 from pydantic import Field
 from pydantic_settings import BaseSettings
 
-
-def get_secret(key: str) -> str:
-    """
-    Dynamically retrieves a secret via environment variables, or
-    falls back securely to Google Colab's userdata API if available.
-    """
-    # 1. Check environment variables first
-    value = os.environ.get(key)
-    if value:
-        return value
-
-    # 2. Securely check Colab userdata dynamically at runtime
-    try:
-        from google.colab import userdata
-
-        colab_value = userdata.get(key)
-        if colab_value:
-            return str(colab_value)
-    except ImportError:
-        pass  # Not running in Colab
-
-    # 3. Fail gracefully if required secret is missing
-    msg = f"Missing required configuration secret: {key}"
-    raise RuntimeError(msg)
+try:
+    from google.colab import userdata
+except ImportError:
+    userdata: Any = None  # type: ignore[no-redef]
 
 
 class PipelineConfig(BaseSettings):
@@ -34,21 +15,42 @@ class PipelineConfig(BaseSettings):
 
     # Required Secrets fetched dynamically to prevent hardcoding or exposure
     google_api_key: str = Field(
-        default_factory=lambda: get_secret("GOOGLE_API_KEY"),
+        default_factory=lambda: cast(
+            str,
+            os.environ.get("GOOGLE_API_KEY")
+            or (userdata.get("GOOGLE_API_KEY") if userdata else None),
+        ),
         description="API key for Google Drive access",
+        min_length=1,
     )
     pyannote_auth_token: str = Field(
-        default_factory=lambda: get_secret("PYANNOTE_AUTH_TOKEN"),
+        default_factory=lambda: cast(
+            str,
+            os.environ.get("PYANNOTE_AUTH_TOKEN")
+            or (userdata.get("PYANNOTE_AUTH_TOKEN") if userdata else None),
+        ),
         description="HuggingFace token for Pyannote Diarization",
+        min_length=1,
     )
     file_id: str = Field(
-        default_factory=lambda: get_secret("FILE_ID"),
+        default_factory=lambda: cast(
+            str,
+            os.environ.get("FILE_ID")
+            or (userdata.get("FILE_ID") if userdata else None),
+        ),
         description="The Google Drive file ID to process",
+        min_length=1,
     )
 
     # Optional / Default Configuration
     silero_vad_model_path: str = Field(
         default="silero_vad.jit", description="Local path to verified Silero VAD .jit model"
+    )
+
+    # Chunker Configuration
+    ffmpeg_path: str = Field(
+        default_factory=lambda: __import__("shutil").which("ffmpeg") or "ffmpeg",
+        description="Path to the ffmpeg executable",
     )
 
     # Transcriber Configuration

@@ -1,16 +1,32 @@
 import logging
 import sys
 from pathlib import Path
+from typing import Any
+
+try:
+    import google.colab
+except ImportError:
+    google: Any = None  # type: ignore[no-redef]
+
+try:
+    import torch
+except ImportError:
+    torch: Any = None  # type: ignore[no-redef]
 
 from domain_models import (
+    AudioChunk,
+    AudioSource,
     AudioSplitter,
     DiarizedSegment,
     DiarizedTranscript,
     Diarizer,
     PipelineConfig,
+    SpeakerLabel,
     SpeechDetector,
+    SpeechSegment,
     StorageClient,
     Transcriber,
+    TranscriptionSegment,
 )
 
 # Import the concrete implementations
@@ -39,24 +55,24 @@ def run_pipeline(
 ) -> DiarizedTranscript:
     """Orchestrates the entire voice analysis pipeline."""
     # 1. Download audio
-    source = storage.download(file_id)
+    source: AudioSource = storage.download(file_id)
 
     # 2. Split into chunks
-    chunks = splitter.split(source)
+    chunks: list[AudioChunk] = splitter.split(source)
 
-    all_segments = []
+    all_segments: list[DiarizedSegment] = []
 
     # 3. Process each chunk
     for chunk in chunks:
         try:
             # VAD gating
-            speech_segments = detector.detect_speech(chunk)
+            speech_segments: list[SpeechSegment] = detector.detect_speech(chunk)
 
             # Transcribe with faster-whisper
-            transcriptions = transcriber.transcribe(chunk, speech_segments)
+            transcriptions: list[TranscriptionSegment] = transcriber.transcribe(chunk, speech_segments)
 
             # Diarize with Pyannote
-            speaker_labels = diarizer.diarize(chunk)
+            speaker_labels: list[SpeakerLabel] = diarizer.diarize(chunk)
 
             # Aggregate results
             for t, s in zip(transcriptions, speaker_labels, strict=False):
@@ -77,13 +93,8 @@ def run_pipeline(
             import gc
 
             gc.collect()
-            try:
-                import torch
-
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
-            except ImportError:
-                pass
+            if torch is not None and torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
     # Cleanup temp files
     Path(source.filepath).unlink(missing_ok=True)
@@ -93,41 +104,47 @@ def run_pipeline(
     return DiarizedTranscript(segments=all_segments)
 
 
+def create_components(config: PipelineConfig) -> tuple[StorageClient, AudioSplitter, SpeechDetector, Transcriber, Diarizer]:
+    """Factory function to build concrete implementations for dependency injection."""
+    storage: StorageClient = GoogleDriveClient(config=config)
+    splitter: AudioSplitter = FFmpegChunker(ffmpeg_path=config.ffmpeg_path, chunk_length_minutes=20)
+    detector: SpeechDetector = SileroVADDetector(
+        threshold=0.5,
+        min_speech_duration_ms=250,
+        min_silence_duration_ms=1000,
+        model_path=config.silero_vad_model_path,
+    )
+    transcriber: Transcriber = FasterWhisperTranscriber(
+        model_size="large-v3",
+        compute_type="int8",
+        language=str(config.transcriber_language),
+        vad_filter=bool(config.transcriber_vad_filter),
+        condition_on_previous_text=bool(config.transcriber_condition_on_previous_text),
+        temperature=list(config.transcriber_temperature),
+    )
+    diarizer: Diarizer = PyannoteDiarizer(auth_token=config.pyannote_auth_token)
+    return storage, splitter, detector, transcriber, diarizer
+
+
 def main() -> None:
     """Main entry point to execute the pipeline using concrete implementations."""
     # 1. Resolve and validate configuration
     try:
-        config = get_config()
+        config: PipelineConfig = get_config()
     except Exception:
         logger.exception("Configuration validation failed")
         sys.exit(1)
 
-    # 2. Initialize concrete implementations using Dependency Injection
+    # 2. Initialize concrete implementations using Dependency Injection via Factory
     try:
-        storage = GoogleDriveClient(config=config)
-        splitter = FFmpegChunker(chunk_length_minutes=20)
-        detector = SileroVADDetector(
-            threshold=0.5,
-            min_speech_duration_ms=250,
-            min_silence_duration_ms=1000,
-            model_path=config.silero_vad_model_path,
-        )
-        transcriber = FasterWhisperTranscriber(
-            model_size="large-v3",
-            compute_type="int8",
-            language=str(config.transcriber_language),
-            vad_filter=bool(config.transcriber_vad_filter),
-            condition_on_previous_text=bool(config.transcriber_condition_on_previous_text),
-            temperature=list(config.transcriber_temperature),
-        )
-        diarizer = PyannoteDiarizer(auth_token=config.pyannote_auth_token)
+        storage, splitter, detector, transcriber, diarizer = create_components(config)
     except Exception:
         logger.exception("Failed to initialize pipeline components")
         sys.exit(1)
 
     # 3. Execute pipeline
     try:
-        transcript = run_pipeline(
+        transcript: DiarizedTranscript = run_pipeline(
             storage=storage,
             splitter=splitter,
             detector=detector,

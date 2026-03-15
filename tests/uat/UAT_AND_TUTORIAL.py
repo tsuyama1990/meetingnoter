@@ -1,19 +1,27 @@
+from collections.abc import Callable
+from typing import Any
+
 import marimo
+
+try:
+    import google.colab
+except ImportError:
+    google: Any = None  # type: ignore[no-redef]
 
 __generated_with = "0.20.4"
 app = marimo.App(width="medium")
 
 
 @app.cell
-def cell_imports() -> tuple:  # type: ignore[type-arg]
+def cell_imports() -> tuple[Any]:
     import marimo as mo
 
     return (mo,)
 
 
 @app.cell
-def cell_markdown(mo: object) -> object:
-    return mo.md(  # type: ignore[attr-defined]
+def cell_markdown(mo: Any) -> Any:
+    return mo.md(
         r"""
         # CYCLE01 User Acceptance Testing (UAT)
 
@@ -24,24 +32,24 @@ def cell_markdown(mo: object) -> object:
 
 @app.cell
 def cell_tests(
-    mo: object,
+    mo: Any,
 ) -> tuple[
-    object,
-    object,
+    Callable[[], Any],
+    Callable[[], Any],
     type,
-    object,
-    object,
-    object,
-    object,
-    object,
-    object,
-    object,
-    object,
-    object,
-    object,
-    object,
-    object,
-    object,
+    type,
+    type,
+    type,
+    type,
+    type,
+    type,
+    type,
+    type,
+    type,
+    type,
+    type,
+    type,
+    Any,
 ]:
     from pydantic import ValidationError
 
@@ -60,7 +68,7 @@ def cell_tests(
         TranscriptionSegment,
     )
 
-    def test_happy_path() -> object:
+    def test_happy_path() -> Any:
         try:
             source = AudioSource(filepath="sample.m4a", duration_seconds=120.0)
             chunk = AudioChunk(
@@ -86,23 +94,23 @@ def cell_tests(
             assert transcription.start_time >= 0
             assert speaker.speaker_id == "SPEAKER_00"
 
-            return mo.md(f"**Happy Path Passed!**\n\nGenerated Transcript: {transcript}")  # type: ignore[attr-defined]
+            return mo.md(f"**Happy Path Passed!**\n\nGenerated Transcript: {transcript}")
         except Exception as e:
-            return mo.md(f"**Happy Path Failed!** Error: {e}")  # type: ignore[attr-defined]
+            return mo.md(f"**Happy Path Failed!** Error: {e}")
 
-    def test_error_handling() -> object:
+    def test_error_handling() -> Any:
         try:
             # Trigger error: start_time > end_time
             AudioChunk(
                 chunk_filepath="sample_chunk_1.wav", start_time=60.0, end_time=10.0, chunk_index=0
             )
-            return mo.md("**Error Handling Failed:** Exception was not triggered!")  # type: ignore[attr-defined]
+            return mo.md("**Error Handling Failed:** Exception was not triggered!")
         except ValidationError as e:
-            return mo.md(  # type: ignore[attr-defined]
+            return mo.md(
                 f"**Error Handling Passed!** Caught validation error gracefully:\n```\n{e}\n```"
             )
 
-    tests_output = mo.vstack([test_happy_path(), test_error_handling()])  # type: ignore[attr-defined]
+    tests_output = mo.vstack([test_happy_path(), test_error_handling()])
     return (
         test_happy_path,
         test_error_handling,
@@ -124,50 +132,60 @@ def cell_tests(
 
 
 @app.cell
-def cell_markdown_c02(mo: object) -> object:
-    return mo.md(  # type: ignore[attr-defined]
+def cell_markdown_c03(mo: Any) -> Any:
+    return mo.md(
         r"""
-        # CYCLE02 User Acceptance Testing (UAT)
+        # CYCLE03 User Acceptance Testing (UAT)
 
-        This section validates the Secure Data Ingestion component logic through test doubles to prevent actual API calls and secret exposure.
+        This section validates the Audio Preprocessing (Chunking) component natively on synthetic datasets, providing a visual demonstration of the chunking mechanism without mocking abstractions.
         """
     )
 
 
 @app.cell
-def cell_tests_c02(mo: object) -> tuple[object, object]:
-    def test_c02_error_handling() -> object:
-        from unittest.mock import MagicMock, patch
+def cell_tests_c03(mo: Any) -> tuple[Callable[[], Any], Any]:
+    def test_c03_ffmpeg_chunker() -> Any:
+        import shutil
+        import tempfile
+        import wave
+        from pathlib import Path
 
-        import requests
+        from domain_models import AudioChunk, AudioSource
+        from meetingnoter.processing.chunker import FFmpegChunker
 
-        from domain_models import PipelineConfig
-        from meetingnoter.ingestion.drive_client import GoogleDriveClient
+        if not shutil.which("ffmpeg"):
+            return mo.md("**Cycle 03 UAT Skipped:** FFmpeg is not installed on this system.")
+
+        with (
+            tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf,
+            wave.open(tf.name, "wb") as w,
+        ):
+            w.setnchannels(1)
+            w.setsampwidth(2)
+            w.setframerate(16000)
+            # Create 3 seconds of synthetic silence
+            w.writeframes(b"\x00" * 16000 * 2 * 3)
 
         try:
-            # Safely configure a fake environment without hardcoding into os.environ globally
-            with patch("os.environ.get", return_value="dummy_env_var_value_for_uat"):
-                config = PipelineConfig()
+            source = AudioSource(filepath=tf.name, duration_seconds=3.0)
+            # Create a chunker that splits every 1 minute (should only produce 1 chunk for 3s audio)
+            chunker = FFmpegChunker(chunk_length_minutes=1)
+            chunks: list[AudioChunk] = chunker.split(source)
 
-            # Inject a mock HTTP Client
-            mock_http = MagicMock(spec=requests.Session)
-            mock_http.get.side_effect = requests.exceptions.HTTPError("403 Forbidden")
+            output_msg = f"**Cycle 03 Chunker Passed!**\n\nGenerated {len(chunks)} chunks successfully.\n\n"
+            for chunk in chunks:
+                output_msg += f"- Chunk {chunk.chunk_index}: {chunk.start_time}s to {chunk.end_time}s\n"
 
-            client = GoogleDriveClient(config=config, http_client=mock_http)
+            return mo.md(output_msg)
+        except Exception as e:
+            return mo.md(f"**Cycle 03 Chunker Failed:** {e}")
+        finally:
+            Path(tf.name).unlink(missing_ok=True)
 
-            # This should fail naturally due to the mock raising HTTPError
-            client.download("fake_file_id_for_testing_12345")
-
-            return mo.md("**Cycle 02 Error Handling Failed:** Exception was not triggered!")  # type: ignore[attr-defined]
-        except RuntimeError as e:
-            return mo.md(  # type: ignore[attr-defined]
-                f"**Cycle 02 Error Handling Passed!** Caught runtime error gracefully from simulated API failure:\n```\n{e}\n```"
-            )
-
-    c02_tests_output = mo.vstack([test_c02_error_handling()])  # type: ignore[attr-defined]
+    c03_tests_output = mo.vstack([test_c03_ffmpeg_chunker()])
     return (
-        test_c02_error_handling,
-        c02_tests_output,
+        test_c03_ffmpeg_chunker,
+        c03_tests_output,
     )
 
 
