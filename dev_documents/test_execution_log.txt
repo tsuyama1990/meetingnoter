@@ -4,24 +4,24 @@ rootdir: /app
 configfile: pyproject.toml
 testpaths: tests
 plugins: cov-7.0.0, anyio-4.12.1
-collected 28 items
+collected 28 items / 2 deselected / 26 selected
 
-tests/e2e/test_integration_01.py ...                                     [ 10%]
-tests/unit/test_chunker.py ......                                        [ 32%]
+tests/e2e/test_integration_01.py s                                       [  3%]
+tests/unit/test_chunker.py ......                                        [ 26%]
 tests/unit/test_domain_models.py ...................                     [100%]
 
 ================================ tests coverage ================================
 _______________ coverage: platform linux, python 3.12.13-final-0 _______________
 
-Name                                         Stmts   Miss  Cover   Missing
---------------------------------------------------------------------------
-main.py                                         69     29    58%   13-14, 45, 87-88, 97, 109-126, 132-161, 165
-src/domain_models/__init__.py                    5      0   100%
-src/domain_models/audio.py                      27      0   100%
-src/domain_models/config.py                     18      0   100%
-src/domain_models/interfaces.py                 13      0   100%
-src/domain_models/transcription.py              38      0   100%
-src/meetingnoter/ingestion/drive_client.py      46      3    93%   51, 57, 63
---------------------------------------------------------------------------
-TOTAL                                          216     32    85%
-============================== 28 passed in 5.66s ==============================
+Name                                 Stmts   Miss  Cover   Missing
+------------------------------------------------------------------
+src/domain_models/__init__.py            5      0   100%
+src/domain_models/audio.py              27      0   100%
+src/domain_models/config.py             18      0   100%
+src/domain_models/interfaces.py         13      0   100%
+src/domain_models/transcription.py      38      0   100%
+------------------------------------------------------------------
+TOTAL                                  101      0   100%
+================= 25 passed, 1 skipped, 2 deselected in 1.49s ==================
+/app/.venv/lib/python3.12/site-packages/coverage/inorout.py:561: CoverageWarning: Module meetingnoter.processing.vad was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.13.4/messages.html#warning-module-not-imported
+  self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")

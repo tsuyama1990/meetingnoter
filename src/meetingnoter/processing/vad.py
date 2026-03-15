@@ -52,9 +52,27 @@ class SileroVADDetector(SpeechDetector):
                 msg = f"Failed to securely load Silero VAD model from local cache: {e}"
                 raise RuntimeError(msg) from e
 
+    def _merge_and_filter_chunks(self, temp_speech_chunks: list[tuple[float, float]]) -> list[tuple[float, float]]:
+        merged_chunks: list[tuple[float, float]] = []
+        for start, end in temp_speech_chunks:
+            if not merged_chunks:
+                merged_chunks.append((start, end))
+            else:
+                prev_start, prev_end = merged_chunks[-1]
+                if (start - prev_end) * 1000 < self.min_silence_duration_ms:
+                    # Merge with previous chunk
+                    merged_chunks[-1] = (prev_start, end)
+                else:
+                    merged_chunks.append((start, end))
+
+        # Filter out chunks shorter than min_speech_duration_ms
+        return [
+            (s, e) for s, e in merged_chunks if (e - s) * 1000 >= self.min_speech_duration_ms
+        ]
+
     def _parse_probabilities(self, probs: "typing.Any", chunk: AudioChunk) -> list[SpeechSegment]:
         segments: list[SpeechSegment] = []
-        speech_chunks: list[tuple[float, float]] = []
+        temp_speech_chunks: list[tuple[float, float]] = []
         is_speech: bool = False
         speech_start: float = 0.0
 
@@ -65,19 +83,20 @@ class SileroVADDetector(SpeechDetector):
             prob: float = float(probs[idx].item())
             time_sec: float = idx * frame_duration
 
-            if prob > self.threshold and not is_speech:
+            if prob >= self.threshold and not is_speech:
                 is_speech = True
                 speech_start = time_sec
             elif prob < self.threshold and is_speech:
                 is_speech = False
-                if (time_sec - speech_start) * 1000 >= self.min_speech_duration_ms:
-                    speech_chunks.append((speech_start, time_sec))
+                temp_speech_chunks.append((speech_start, time_sec))
 
         if is_speech:
-            speech_chunks.append((speech_start, float(len(probs)) * frame_duration))
+            temp_speech_chunks.append((speech_start, float(len(probs)) * frame_duration))
+
+        final_chunks = self._merge_and_filter_chunks(temp_speech_chunks)
 
         # Map local timestamps to global offsets
-        for start, end in speech_chunks:
+        for start, end in final_chunks:
             global_start: float = chunk.start_time + start
             global_end: float = chunk.start_time + end
             global_end = min(global_end, chunk.end_time)
