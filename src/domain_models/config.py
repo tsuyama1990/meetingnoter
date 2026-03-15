@@ -35,8 +35,7 @@ class PipelineConfig(BaseSettings):
     file_id: str = Field(
         default_factory=lambda: cast(
             str,
-            os.environ.get("FILE_ID")
-            or (userdata.get("FILE_ID") if userdata else None),
+            os.environ.get("FILE_ID") or (userdata.get("FILE_ID") if userdata else None),
         ),
         description="The Google Drive file ID to process",
         min_length=1,

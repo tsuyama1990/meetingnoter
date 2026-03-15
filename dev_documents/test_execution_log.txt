@@ -4,24 +4,24 @@ rootdir: /app
 configfile: pyproject.toml
 testpaths: tests
 plugins: cov-7.0.0, anyio-4.12.1
-collected 28 items
+collected 34 items / 2 deselected / 32 selected
 
-tests/e2e/test_integration_01.py ...                                     [ 10%]
-tests/unit/test_chunker.py ......                                        [ 32%]
-tests/unit/test_domain_models.py ...................                     [100%]
+tests/e2e/test_integration_01.py s                                       [  3%]
+tests/unit/test_chunker.py ......                                        [ 21%]
+tests/unit/test_domain_models.py ...................                     [ 81%]
+tests/unit/test_vad.py ......                                            [100%]
 
 ================================ tests coverage ================================
 _______________ coverage: platform linux, python 3.12.13-final-0 _______________
 
-Name                                         Stmts   Miss  Cover   Missing
---------------------------------------------------------------------------
-main.py                                         69     29    58%   13-14, 45, 87-88, 97, 109-126, 132-161, 165
-src/domain_models/__init__.py                    5      0   100%
-src/domain_models/audio.py                      27      0   100%
-src/domain_models/config.py                     18      0   100%
-src/domain_models/interfaces.py                 13      0   100%
-src/domain_models/transcription.py              38      0   100%
-src/meetingnoter/ingestion/drive_client.py      46      3    93%   51, 57, 63
---------------------------------------------------------------------------
-TOTAL                                          216     32    85%
-============================== 28 passed in 5.66s ==============================
+Name                                 Stmts   Miss  Cover   Missing
+------------------------------------------------------------------
+src/domain_models/__init__.py            5      0   100%
+src/domain_models/audio.py              27      0   100%
+src/domain_models/config.py             18      0   100%
+src/domain_models/interfaces.py         13      0   100%
+src/domain_models/transcription.py      38      0   100%
+src/meetingnoter/processing/vad.py     184     58    68%   14-16, 49-50, 68-69, 86-87, 102, 108-109, 125-132, 142-148, 172-173, 189, 196-197, 207-216, 223, 227-229, 232-233, 236-237, 240-241, 244-245, 265-266, 269-273, 279, 283-284
+------------------------------------------------------------------
+TOTAL                                  285     58    80%
+================= 31 passed, 1 skipped, 2 deselected in 5.68s ==================

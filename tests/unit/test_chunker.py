@@ -21,7 +21,7 @@ def test_ffmpeg_chunker_single_chunk(mock_run: MagicMock) -> None:
         mock_stat.return_value = mock_stat_obj
 
         chunker = FFmpegChunker(chunk_length_minutes=20)
-        source = AudioSource(filepath=tf.name, duration_seconds=600.0) # 10 mins
+        source = AudioSource(filepath=tf.name, duration_seconds=600.0)  # 10 mins
         chunks = chunker.split(source)
 
         assert len(chunks) == 1
@@ -32,6 +32,7 @@ def test_ffmpeg_chunker_single_chunk(mock_run: MagicMock) -> None:
         args = mock_run.call_args[0][0]
         assert "-c" in args
         assert "copy" in args
+
 
 @patch("subprocess.run")
 def test_ffmpeg_chunker_multiple_chunks(mock_run: MagicMock) -> None:
@@ -47,7 +48,7 @@ def test_ffmpeg_chunker_multiple_chunks(mock_run: MagicMock) -> None:
         mock_stat.return_value = mock_stat_obj
 
         chunker = FFmpegChunker(chunk_length_minutes=20)
-        source = AudioSource(filepath=tf.name, duration_seconds=3000.0) # 50 mins
+        source = AudioSource(filepath=tf.name, duration_seconds=3000.0)  # 50 mins
         chunks = chunker.split(source)
 
         assert len(chunks) == 3
@@ -59,10 +60,12 @@ def test_ffmpeg_chunker_multiple_chunks(mock_run: MagicMock) -> None:
         assert chunks[2].end_time == 3000.0
         assert mock_run.call_count == 3
 
+
 @patch("subprocess.run")
 def test_ffmpeg_chunker_missing_ffmpeg(mock_run: MagicMock) -> None:
 
     from meetingnoter.processing.chunker import FFmpegChunker
+
     mock_run.side_effect = FileNotFoundError("ffmpeg")
 
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf:
@@ -74,21 +77,24 @@ def test_ffmpeg_chunker_missing_ffmpeg(mock_run: MagicMock) -> None:
     with pytest.raises(RuntimeError, match="FFmpeg is not installed or not found in system PATH."):
         chunker.split(source)
 
+
 @patch("subprocess.run")
 def test_ffmpeg_chunker_subprocess_error(mock_run: MagicMock) -> None:
     import subprocess
 
     from meetingnoter.processing.chunker import FFmpegChunker
+
     mock_run.side_effect = subprocess.CalledProcessError(1, "ffmpeg")
 
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf:
         pass
 
     chunker = FFmpegChunker(chunk_length_minutes=20)
-    source = AudioSource(filepath=tf.name, duration_seconds=1500.0) # multiple chunks
+    source = AudioSource(filepath=tf.name, duration_seconds=1500.0)  # multiple chunks
 
     with pytest.raises(RuntimeError, match="FFmpeg chunking failed"):
         chunker.split(source)
+
 
 @patch("subprocess.run")
 def test_ffmpeg_chunker_empty_output_multiple_chunks(mock_run: MagicMock) -> None:
@@ -108,6 +114,7 @@ def test_ffmpeg_chunker_empty_output_multiple_chunks(mock_run: MagicMock) -> Non
 
         with pytest.raises(RuntimeError, match="FFmpeg chunk 0 is empty"):
             chunker.split(source)
+
 
 @patch("subprocess.run")
 def test_ffmpeg_chunker_empty_output_single_chunk(mock_run: MagicMock) -> None:

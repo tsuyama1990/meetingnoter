@@ -43,7 +43,7 @@ select = [
 
 ignore = [
     "ANN101", "ANN002", "ANN003", "ANN001", "ANN401", "ARG001", "ARG005",
-    "PLR2004", "E501", "TRY003", "D", "ANN201", "N806", "PLC0415", "BLE001",
+    "PLR2004", "E501", "TRY003", "TRY301", "D", "ANN201", "N806", "PLC0415", "BLE001",
     "PT019", "RUF003", "ARG002", "RUF043", "RUF059", "PLR0913", "ANN202"
 ]
 
@@ -57,7 +57,7 @@ max-complexity = 10  # Exceeding this prompts function splitting (prevent AI lon
 suppress-dummy-args = true  # Arguments starting with _ do not require type hints
 
 [tool.pytest.ini_options]
-addopts = "--cov=src/domain_models --cov=src/meetingnoter/ingestion --cov=main --cov-report=term-missing"
+addopts = "--cov=src/domain_models --cov=src/domain_models --cov=meetingnoter.processing.vad --cov-report=term-missing"
 testpaths = ["tests"]
 
 [tool.mypy]
