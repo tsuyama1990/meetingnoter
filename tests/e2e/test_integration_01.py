@@ -108,6 +108,7 @@ def test_pipeline_integration() -> None:
     storage: StorageClient = SyntheticDatasetStorageClient()
     splitter: AudioSplitter = FFmpegChunker(chunk_length_minutes=1)
     detector: SpeechDetector = SyntheticDatasetSpeechDetector()
+
     transcriber: Transcriber = SyntheticDatasetTranscriber()
     diarizer: Diarizer = SyntheticDatasetDiarizer()
 

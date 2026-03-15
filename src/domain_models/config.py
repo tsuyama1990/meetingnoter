@@ -53,6 +53,10 @@ class PipelineConfig(BaseSettings):
     )
 
     # Transcriber Configuration
+    transcriber_model_size: str = Field(default="large-v3", description="Faster Whisper model size")
+    transcriber_compute_type: str = Field(
+        default="int8", description="Faster Whisper compute type for optimization"
+    )
     transcriber_language: str = Field(default="ja", description="Target language for transcription")
     transcriber_vad_filter: bool = Field(
         default=True, description="Enable VAD filtering in whisper"
