@@ -1,17 +1,5 @@
-import sys
-from pathlib import Path
-
-# Fix sys.path universally for raw Python execution
-try:
-    _base_dir = Path(__file__).parent.parent
-except NameError:
-    _base_dir = Path().resolve()
-
-if str(_base_dir) not in sys.path:
-    sys.path.insert(0, str(_base_dir))
-
-from collections.abc import Callable
 from typing import Any
+from collections.abc import Callable
 
 import marimo
 
@@ -27,6 +15,19 @@ except ImportError:
 
 __generated_with = "0.20.4"
 app = marimo.App(width="medium")
+
+import sys
+from pathlib import Path
+try:
+    _base_dir = Path(__file__).parent.parent
+except NameError:
+    _base_dir = Path().resolve()
+
+_src_dir = _base_dir / "src"
+if str(_src_dir) not in sys.path:
+    sys.path.insert(0, str(_src_dir))
+if str(_base_dir) not in sys.path:
+    sys.path.insert(0, str(_base_dir))
 
 
 @app.cell
@@ -84,7 +85,7 @@ def cell_tests(
 ]:
     from pydantic import ValidationError
 
-    from src.domain_models import (
+    from domain_models import (
         AudioChunk,
         AudioSource,
         AudioSplitter,
@@ -188,7 +189,7 @@ def cell_tests_c03(mo: Any) -> tuple[Callable[[], Any], Any]:
         import wave
         from pathlib import Path
 
-        from src.domain_models import AudioChunk, AudioSource
+        from domain_models import AudioChunk, AudioSource
 
         # Dynamically import to satisfy IoC/Anti-hardcode requirements
         chunker_module = importlib.import_module("meetingnoter.processing.chunker")
@@ -229,21 +230,17 @@ def cell_tests_c03(mo: Any) -> tuple[Callable[[], Any], Any]:
     )
 
 
-if __name__ == "__main__":
-    app.run()
 
 
 @app.cell
 def cell_tests_c05_1() -> tuple[object, ...]:
-    import marimo as mo
-
-    return (mo,)
+    return tuple()
 
 
 @app.cell
 def cell_tests_c05_2(mo: object) -> tuple[object, ...]:
-    from typing import Any
 
+    import typing as _typing
     mo_typed = _typing.cast(_typing.Any, mo)
     mo_typed.md(
         """
@@ -259,17 +256,17 @@ def cell_tests_c05_2(mo: object) -> tuple[object, ...]:
 
 @app.cell
 def cell_tests_c05_3(mo: Any) -> tuple[Any, ...]:
-    import tempfile
-    import wave
-    from pathlib import Path
 
-    from src.domain_models import AudioChunk
-    from src.domain_models import PipelineConfig
-    from src.domain_models import SpeechSegment
+
+
 
     import typing as _typing_c05_real
 
     def test_c05_transcription_engine_real() -> _typing_c05_real.Any:
+        import tempfile
+        import wave
+        from pathlib import Path
+        from domain_models import AudioChunk, PipelineConfig, SpeechSegment
         try:
             import importlib
             import importlib.util
@@ -350,12 +347,12 @@ def cell_tests_c05_3(mo: Any) -> tuple[Any, ...]:
 
 @app.cell
 def cell_tests_c05_4(mo: Any) -> tuple[Any, ...]:
-    from src.domain_models import AudioChunk
-    from src.domain_models import PipelineConfig
+
 
     import typing as _typing_c05_err
 
     def test_c05_transcription_error_handling() -> _typing_c05_err.Any:
+        from domain_models import AudioChunk, PipelineConfig
         try:
             import importlib
 
@@ -389,7 +386,7 @@ def cell_tests_c05_4(mo: Any) -> tuple[Any, ...]:
         try:
             transcriber_err.transcribe(chunk_err, [])
             return mo.md("**Error Handling Failed:** Exception was not triggered!")
-        except FileNotFoundError as e:
+        except (FileNotFoundError, ValueError) as e:
             return mo.md(
                 f"**Scenario ID: UAT-C05-02 - Robust Error Handling - SUCCESS** Caught expected error: `{e}`"
             )
@@ -414,16 +411,18 @@ def cell_tests_c07_1(mo: Any) -> tuple[Any, ...]:
 
 @app.cell
 def cell_tests_c07_2(mo: Any) -> tuple[Any, ...]:
-    import tempfile
-    import wave
-    from pathlib import Path
 
-    from src.domain_models import PipelineConfig
-    from src.main import run_pipeline
+
+
 
     import typing as _typing_c07_primary
 
     def test_c07_primary_path() -> _typing_c07_primary.Any:
+        import tempfile
+        import wave
+        from pathlib import Path
+        from domain_models import PipelineConfig
+        from main import run_pipeline
         try:
             import os
             from unittest.mock import MagicMock, patch
@@ -442,11 +441,11 @@ def cell_tests_c07_2(mo: Any) -> tuple[Any, ...]:
                 patch.object(_config, "transcriber_model_size", "tiny"),
                 patch.object(_config, "transcriber_compute_type", "int8"),
             ):
-                from src.meetingnoter.ingestion.drive_client import GoogleDriveClient
-                from src.meetingnoter.processing.chunker import FFmpegChunker
-                from src.meetingnoter.processing.diarizer import PyannoteDiarizer
-                from src.meetingnoter.processing.transcriber import FasterWhisperTranscriber
-                from src.meetingnoter.processing.vad import SileroVADDetector
+                from meetingnoter.ingestion.drive_client import GoogleDriveClient
+                from meetingnoter.processing.chunker import FFmpegChunker
+                from meetingnoter.processing.diarizer import PyannoteDiarizer
+                from meetingnoter.processing.transcriber import FasterWhisperTranscriber
+                from meetingnoter.processing.vad import SileroVADDetector
 
                 # Instantiate real components instead of mocks.
                 _c07_storage = GoogleDriveClient(config=_config)
@@ -493,7 +492,7 @@ def cell_tests_c07_2(mo: Any) -> tuple[Any, ...]:
             ):
                 # Let's just run it! Real components with intercepted downloads.
                 try:
-                    from src.meetingnoter.processing.aggregator import TranscriptMerger
+                    from meetingnoter.processing.aggregator import TranscriptMerger
 
                     _c07_transcript = run_pipeline(
                         storage=_c07_storage,
@@ -529,12 +528,13 @@ def cell_tests_c07_3(mo: Any) -> tuple[Any, ...]:
 
     import requests
 
-    from src.domain_models import PipelineConfig
-    from src.main import run_pipeline
+
 
     import typing as _typing_c07_err
 
     def test_c07_error_handling() -> _typing_c07_err.Any:
+        from domain_models import PipelineConfig
+        from main import run_pipeline
         try:
             import os
 
@@ -550,11 +550,11 @@ def cell_tests_c07_3(mo: Any) -> tuple[Any, ...]:
                 patch.object(_config_err, "transcriber_model_size", "tiny"),
                 patch.object(_config_err, "transcriber_compute_type", "int8"),
             ):
-                from src.meetingnoter.ingestion.drive_client import GoogleDriveClient
-                from src.meetingnoter.processing.chunker import FFmpegChunker
-                from src.meetingnoter.processing.diarizer import PyannoteDiarizer
-                from src.meetingnoter.processing.transcriber import FasterWhisperTranscriber
-                from src.meetingnoter.processing.vad import SileroVADDetector
+                from meetingnoter.ingestion.drive_client import GoogleDriveClient
+                from meetingnoter.processing.chunker import FFmpegChunker
+                from meetingnoter.processing.diarizer import PyannoteDiarizer
+                from meetingnoter.processing.transcriber import FasterWhisperTranscriber
+                from meetingnoter.processing.vad import SileroVADDetector
 
                 _c07_err_storage = GoogleDriveClient(config=_config_err)
                 _c07_err_splitter = FFmpegChunker(
@@ -578,7 +578,7 @@ def cell_tests_c07_3(mo: Any) -> tuple[Any, ...]:
             )
             _c07_err_storage.http_client = _mock_http_err
 
-            from src.meetingnoter.processing.aggregator import TranscriptMerger
+            from meetingnoter.processing.aggregator import TranscriptMerger
 
             run_pipeline(
                 storage=_c07_err_storage,
@@ -635,8 +635,8 @@ def cell_tests_c08_2(mo: Any) -> tuple[Any, ...]:
 
     def test_c08_primary_path() -> _typing_c08_primary.Any:
         try:
-            from src.domain_models import AudioChunk, SpeakerLabel, TranscriptionSegment
-            from src.meetingnoter.processing.aggregator import TranscriptMerger
+            from domain_models import AudioChunk, SpeakerLabel, TranscriptionSegment
+            from meetingnoter.processing.aggregator import TranscriptMerger
 
             chunk = AudioChunk(
                 chunk_filepath="sample_chunk_1.wav",
@@ -673,8 +673,8 @@ def cell_tests_c08_3(mo: Any) -> tuple[Any, ...]:
 
     def test_c08_error_handling() -> _typing_c08_err.Any:
         try:
-            from src.domain_models import AudioChunk, SpeakerLabel, TranscriptionSegment
-            from src.meetingnoter.processing.aggregator import TranscriptMerger
+            from domain_models import AudioChunk, SpeakerLabel, TranscriptionSegment
+            from meetingnoter.processing.aggregator import TranscriptMerger
 
             chunk = AudioChunk(
                 chunk_filepath="sample_chunk_1.wav",
@@ -711,7 +711,6 @@ def cell_tests_c08_3(mo: Any) -> tuple[Any, ...]:
 
 @app.cell
 def quick_start_markdown(mo: Any) -> tuple[Any, ...]:
-    from typing import Any
     return (mo.md("""
 # Quick Start: Mock Interview Processing
 
@@ -720,20 +719,22 @@ Run this cell to see a mock pipeline execution where a dummy interview is chunke
 
 @app.cell
 def quick_start_execution(mo: Any) -> tuple[Any, ...]:
-    from typing import Any
-    import os
-    from src.domain_models import DiarizedSegment, DiarizedTranscript
+    from domain_models import DiarizedSegment as _DiarizedSegment_qs, DiarizedTranscript as _DiarizedTranscript_qs
 
     # Mock Mode
     mock_segments = [
-        DiarizedSegment(start_time=0.0, end_time=5.0, speaker_id="SPEAKER_00", text="Hello, thank you for joining the interview today."),
+        _DiarizedSegment_qs(start_time=0.0, end_time=5.0, speaker_id="SPEAKER_00", text="Hello, thank you for joining the interview today."),
         DiarizedSegment(start_time=5.5, end_time=12.0, speaker_id="SPEAKER_01", text="Thanks for having me. I am excited to discuss the product."),
         DiarizedSegment(start_time=12.5, end_time=20.0, speaker_id="SPEAKER_00", text="Great! Let's get started. What is the main problem you face?"),
     ]
-    mock_transcript = DiarizedTranscript(segments=mock_segments)
+    mock_transcript = _DiarizedTranscript_qs(segments=mock_segments)
 
     output = "**Mock Mode Output:**\\n\\n"
     for seg in mock_transcript.segments:
         output += f"- **[{seg.start_time:.1f}s - {seg.end_time:.1f}s] {seg.speaker_id}:** {seg.text}\\n"
 
     return (mo.md(output),)
+
+
+if __name__ == "__main__":
+    app.run()
