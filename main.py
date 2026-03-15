@@ -140,6 +140,9 @@ def run_pipeline(
 
         return DiarizedTranscript(segments=all_segments)
     finally:
+        # Guarantee final memory scrub before returning to main
+        _cleanup_memory()
+
         # Cleanup temp files
         if source is not None:
             Path(source.filepath).unlink(missing_ok=True)
@@ -160,7 +163,13 @@ def create_components(
         model_path=config.silero_vad_model_path,
     )
     transcriber: Transcriber = FasterWhisperTranscriber(config)
-    diarizer: Diarizer = PyannoteDiarizer(auth_token=config.pyannote_auth_token)
+
+    try:
+        diarizer: Diarizer = PyannoteDiarizer(auth_token=config.pyannote_auth_token)
+    except Exception as e:
+        msg = f"Failed to initialize PyannoteDiarizer. Ensure pyannote.audio is correctly installed: {e}"
+        raise RuntimeError(msg) from e
+
     return storage, splitter, detector, transcriber, diarizer
 
 
