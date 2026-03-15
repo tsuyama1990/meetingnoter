@@ -70,10 +70,13 @@ def cell_tests(
 
     def test_happy_path() -> Any:
         try:
-            source = AudioSource(filepath="sample.m4a", duration_seconds=120.0)
-            chunk = AudioChunk(
-                chunk_filepath="sample_chunk_1.wav", start_time=0.0, end_time=60.0, chunk_index=0
-            )
+            import tempfile
+            with tempfile.NamedTemporaryFile(suffix=".m4a", delete=False) as tf:
+                source = AudioSource(filepath=tf.name, duration_seconds=120.0)
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf2:
+                chunk = AudioChunk(
+                    chunk_filepath=tf2.name, start_time=0.0, end_time=60.0, chunk_index=0
+                )
             speech = SpeechSegment(start_time=1.0, end_time=15.0)
             transcription = TranscriptionSegment(
                 start_time=1.0, end_time=15.0, text="Thank you for joining this interview."
@@ -172,9 +175,13 @@ def cell_tests_c03(mo: Any) -> tuple[Callable[[], Any], Any]:
             chunker = FFmpegChunker(chunk_length_minutes=1)
             chunks: list[AudioChunk] = chunker.split(source)
 
-            output_msg = f"**Cycle 03 Chunker Passed!**\n\nGenerated {len(chunks)} chunks successfully.\n\n"
+            output_msg = (
+                f"**Cycle 03 Chunker Passed!**\n\nGenerated {len(chunks)} chunks successfully.\n\n"
+            )
             for chunk in chunks:
-                output_msg += f"- Chunk {chunk.chunk_index}: {chunk.start_time}s to {chunk.end_time}s\n"
+                output_msg += (
+                    f"- Chunk {chunk.chunk_index}: {chunk.start_time}s to {chunk.end_time}s\n"
+                )
 
             return mo.md(output_msg)
         except Exception as e:

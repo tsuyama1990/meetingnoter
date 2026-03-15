@@ -18,6 +18,7 @@ from domain_models import (
 class SyntheticDatasetStorageClient(StorageClient):
     def download(self, file_id: str) -> AudioSource:
         import wave
+
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf:
             with wave.open(tf.name, "wb") as w:
                 w.setnchannels(1)
@@ -39,7 +40,9 @@ class SyntheticDatasetTranscriber(Transcriber):
     ) -> list[TranscriptionSegment]:
         return [
             TranscriptionSegment(
-                start_time=seg.start_time, end_time=seg.end_time, text=f"Synthetic Text {seg.start_time}"
+                start_time=seg.start_time,
+                end_time=seg.end_time,
+                text=f"Synthetic Text {seg.start_time}",
             )
             for seg in speech_segments
         ]
@@ -121,10 +124,13 @@ def test_pipeline_integration() -> None:
     assert transcript.segments[0].speaker_id == "SPEAKER_00"
     assert transcript.segments[0].text == "Synthetic Text 0.0"
 
+
 def test_ffmpeg_chunker_integration() -> None:
     import shutil
+
     if not shutil.which("ffmpeg"):
         import pytest
+
         pytest.skip("ffmpeg not installed")
 
     import wave
@@ -145,7 +151,7 @@ def test_ffmpeg_chunker_integration() -> None:
 
     try:
         source: AudioSource = AudioSource(filepath=tf.name, duration_seconds=1.0)
-        chunker: FFmpegChunker = FFmpegChunker(chunk_length_minutes=1) # 1 minute chunks
+        chunker: FFmpegChunker = FFmpegChunker(chunk_length_minutes=1)  # 1 minute chunks
 
         chunks: list[AudioChunk] = chunker.split(source)
 

@@ -18,3 +18,7 @@ __all__ = [
     "Transcriber",
     "TranscriptionSegment",
 ]
+
+from .credentials import CredentialManager as CredentialManager
+
+__all__.append("CredentialManager")

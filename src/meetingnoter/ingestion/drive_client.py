@@ -30,9 +30,11 @@ class GoogleDriveClient(StorageClient):
             # Construct Google Drive download URL for API key usage securely
             # API key should not be in the query string to prevent log leakage.
             url = f"https://www.googleapis.com/drive/v3/files/{file_id}?alt=media"
-            headers = {"Authorization": f"Bearer {self.config.google_api_key}"}
+            headers = self.config.google_api_key.get_auth_header()
 
-            response = self.http_client.get(url, headers=headers, timeout=30, verify=True, stream=True)
+            response = self.http_client.get(
+                url, headers=headers, timeout=30, verify=True, stream=True
+            )
             response.raise_for_status()
 
             fd, temp_file_path = tempfile.mkstemp(suffix=".wav")

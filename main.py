@@ -3,6 +3,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from domain_models.config import resolve_secrets
+
 try:
     import google.colab
 except ImportError:
@@ -41,8 +43,28 @@ logger = logging.getLogger(__name__)
 
 
 def get_config() -> PipelineConfig:
-    # Resolves directly from ENV or google.colab.userdata via default_factory
-    return PipelineConfig()
+    # Resolve secrets securely from environment or Colab userdata
+    secrets = resolve_secrets()
+
+    if (
+        "google_api_key" not in secrets
+        or "pyannote_auth_token" not in secrets
+        or "file_id" not in secrets
+    ):
+        msg = (
+            "Missing required configuration secrets (GOOGLE_API_KEY, PYANNOTE_AUTH_TOKEN, FILE_ID)"
+        )
+        raise ValueError(msg)
+
+    return PipelineConfig(
+        google_api_key=__import__(
+            "domain_models.credentials", fromlist=["CredentialManager"]
+        ).CredentialManager(secrets["google_api_key"]),
+        pyannote_auth_token=__import__(
+            "domain_models.credentials", fromlist=["CredentialManager"]
+        ).CredentialManager(secrets["pyannote_auth_token"]),
+        file_id=secrets["file_id"],
+    )
 
 
 def run_pipeline(
@@ -69,7 +91,9 @@ def run_pipeline(
             speech_segments: list[SpeechSegment] = detector.detect_speech(chunk)
 
             # Transcribe with faster-whisper
-            transcriptions: list[TranscriptionSegment] = transcriber.transcribe(chunk, speech_segments)
+            transcriptions: list[TranscriptionSegment] = transcriber.transcribe(
+                chunk, speech_segments
+            )
 
             # Diarize with Pyannote
             speaker_labels: list[SpeakerLabel] = diarizer.diarize(chunk)
@@ -104,14 +128,16 @@ def run_pipeline(
     return DiarizedTranscript(segments=all_segments)
 
 
-def create_components(config: PipelineConfig) -> tuple[StorageClient, AudioSplitter, SpeechDetector, Transcriber, Diarizer]:
+def create_components(
+    config: PipelineConfig,
+) -> tuple[StorageClient, AudioSplitter, SpeechDetector, Transcriber, Diarizer]:
     """Factory function to build concrete implementations for dependency injection."""
     storage: StorageClient = GoogleDriveClient(config=config)
     splitter: AudioSplitter = FFmpegChunker(ffmpeg_path=config.ffmpeg_path, chunk_length_minutes=20)
     detector: SpeechDetector = SileroVADDetector(
         threshold=0.5,
         min_speech_duration_ms=250,
-        min_silence_duration_ms=1000,
+        min_silence_duration_ms=500,  # Fixed constraint
         model_path=config.silero_vad_model_path,
     )
     transcriber: Transcriber = FasterWhisperTranscriber(
@@ -122,7 +148,9 @@ def create_components(config: PipelineConfig) -> tuple[StorageClient, AudioSplit
         condition_on_previous_text=bool(config.transcriber_condition_on_previous_text),
         temperature=list(config.transcriber_temperature),
     )
-    diarizer: Diarizer = PyannoteDiarizer(auth_token=config.pyannote_auth_token)
+    diarizer: Diarizer = PyannoteDiarizer(
+        auth_token=config.pyannote_auth_token.get_auth_header()["Authorization"].split(" ")[1]
+    )
     return storage, splitter, detector, transcriber, diarizer
 
 
