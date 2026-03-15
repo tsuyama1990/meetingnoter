@@ -156,20 +156,20 @@ def create_components(
 ) -> tuple[StorageClient, AudioSplitter, SpeechDetector, Transcriber, Diarizer]:
     """Factory function to build concrete implementations using dynamic imports for IoC."""
     # Dynamically import components to prevent hardcoding dependencies at module level
-    drive_client_module = importlib.import_module("meetingnoter.ingestion.drive_client")
-    chunker_module = importlib.import_module("meetingnoter.processing.chunker")
-    vad_module = importlib.import_module("meetingnoter.processing.vad")
-    transcriber_module = importlib.import_module("meetingnoter.processing.transcriber")
-    diarizer_module = importlib.import_module("meetingnoter.processing.diarizer")
+    drive_client_module = importlib.import_module(config.drive_client_module_path)
+    chunker_module = importlib.import_module(config.chunker_module_path)
+    vad_module = importlib.import_module(config.vad_module_path)
+    transcriber_module = importlib.import_module(config.transcriber_module_path)
+    diarizer_module = importlib.import_module(config.diarizer_module_path)
 
     storage: StorageClient = drive_client_module.GoogleDriveClient(config=config)
     splitter: AudioSplitter = chunker_module.FFmpegChunker(
-        ffmpeg_path=config.ffmpeg_path, chunk_length_minutes=20
+        ffmpeg_path=config.ffmpeg_path, chunk_length_minutes=config.chunk_length_minutes
     )
     detector: SpeechDetector = vad_module.SileroVADDetector(
-        threshold=0.5,
-        min_speech_duration_ms=250,
-        min_silence_duration_ms=1000,
+        threshold=config.vad_threshold,
+        min_speech_duration_ms=config.vad_min_speech_duration_ms,
+        min_silence_duration_ms=config.vad_min_silence_duration_ms,
         model_path=config.silero_vad_model_path,
     )
     transcriber: Transcriber = transcriber_module.FasterWhisperTranscriber(config)

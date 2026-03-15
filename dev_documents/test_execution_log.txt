@@ -20,7 +20,7 @@ Name                                         Stmts   Miss  Cover   Missing
 main.py                                        108     43    60%   13-14, 37, 104, 159-187, 193-225, 232
 src/domain_models/__init__.py                    5      0   100%
 src/domain_models/audio.py                      27      0   100%
-src/domain_models/config.py                     57     15    74%   10, 49-65
+src/domain_models/config.py                     66     15    77%   10, 49-65
 src/domain_models/interfaces.py                 13      0   100%
 src/domain_models/transcription.py              38      0   100%
 src/meetingnoter/__init__.py                     0      0   100%
@@ -34,5 +34,5 @@ tests/unit/test_cycle_05.py                    301      1    99%   452
 tests/unit/test_domain_models.py               122      0   100%
 tests/unit/test_vad.py                          81      0   100%
 --------------------------------------------------------------------------
-TOTAL                                         1279    145    89%
-======================== 55 passed, 1 skipped in 8.29s =========================
+TOTAL                                         1288    145    89%
+======================== 55 passed, 1 skipped in 8.52s =========================

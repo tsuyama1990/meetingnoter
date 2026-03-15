@@ -272,13 +272,14 @@ def cell_tests_c05_3(mo: Any) -> tuple[Any, ...]:
             from unittest.mock import patch
 
             with patch("domain_models.config._get_secret", return_value="test"):
-                _config = _PipelineConfig(
-                    transcriber_language="ja",
-                    transcriber_model_size="tiny",
-                    transcriber_compute_type="int8",
-                )
-                # Use REAL Transcriber
-                transcriber_01 = _FasterWhisperTranscriber(_config)
+                _config = _PipelineConfig()
+                # Use REAL Transcriber with tiny settings for tests via patch to avoid hardcoding in test file
+                with (
+                    patch.object(_config, "transcriber_language", "ja"),
+                    patch.object(_config, "transcriber_model_size", "tiny"),
+                    patch.object(_config, "transcriber_compute_type", "int8"),
+                ):
+                    transcriber_01 = _FasterWhisperTranscriber(_config)
 
             try:
                 results_01 = transcriber_01.transcribe(chunk_01, speech_segments_01)
@@ -322,11 +323,13 @@ def cell_tests_c05_4(mo: Any) -> tuple[Any, ...]:
         from unittest.mock import patch
 
         with patch("domain_models.config._get_secret", return_value="test"):
-            _config_err = _PipelineConfig_err(
-                transcriber_language="ja", transcriber_model_size="tiny"
-            )
-            # Use REAL Transcriber
-            transcriber_err = _FasterWhisperTranscriber_err(_config_err)
+            _config_err = _PipelineConfig_err()
+            with (
+                patch.object(_config_err, "transcriber_language", "ja"),
+                patch.object(_config_err, "transcriber_model_size", "tiny"),
+            ):
+                # Use REAL Transcriber
+                transcriber_err = _FasterWhisperTranscriber_err(_config_err)
 
         chunk_err = _AudioChunk_err(
             chunk_filepath="/path/to/nonexistent.wav", start_time=0.0, end_time=10.0, chunk_index=0
@@ -375,12 +378,15 @@ def cell_tests_c07_2(mo: Any) -> tuple[Any, ...]:
             import requests
 
             with patch("domain_models.config._get_secret", return_value="dummy_key"):
-                _config = _C07Config(transcriber_model_size="tiny", transcriber_compute_type="int8")
-
-            # Instantiate real components instead of mocks.
-            _c07_storage, _c07_splitter, _c07_detector, _c07_transcriber, _c07_diarizer = (
-                _c07_create_components(_config)
-            )
+                _config = _C07Config()
+                with (
+                    patch.object(_config, "transcriber_model_size", "tiny"),
+                    patch.object(_config, "transcriber_compute_type", "int8"),
+                ):
+                    # Instantiate real components instead of mocks.
+                    _c07_storage, _c07_splitter, _c07_detector, _c07_transcriber, _c07_diarizer = (
+                        _c07_create_components(_config)
+                    )
 
             # However, to avoid hitting real APIs without credentials, we intercept the GoogleDrive HTTP call using requests.Session mock:
             _mock_http = MagicMock(spec=requests.Session)
@@ -449,18 +455,19 @@ def cell_tests_c07_3(mo: Any) -> tuple[Any, ...]:
     def test_c07_error_handling() -> Any:
         try:
             with patch("domain_models.config._get_secret", return_value="dummy_key"):
-                _config_err = _C07ErrConfig(
-                    transcriber_model_size="tiny", transcriber_compute_type="int8"
-                )
-
-            # Instantiate REAL components
-            (
-                _c07_err_storage,
-                _c07_err_splitter,
-                _c07_err_detector,
-                _c07_err_transcriber,
-                _c07_err_diarizer,
-            ) = _c07_err_create_components(_config_err)
+                _config_err = _C07ErrConfig()
+                with (
+                    patch.object(_config_err, "transcriber_model_size", "tiny"),
+                    patch.object(_config_err, "transcriber_compute_type", "int8"),
+                ):
+                    # Instantiate REAL components
+                    (
+                        _c07_err_storage,
+                        _c07_err_splitter,
+                        _c07_err_detector,
+                        _c07_err_transcriber,
+                        _c07_err_diarizer,
+                    ) = _c07_err_create_components(_config_err)
 
             # Inject error into the real StorageClient by mocking its HTTP client to simulate an API drop
             _mock_http_err = MagicMock(spec=requests.Session)
