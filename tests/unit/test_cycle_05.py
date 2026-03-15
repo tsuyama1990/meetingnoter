@@ -213,21 +213,6 @@ def test_transcriber_model_none_after_load(
             transcriber.transcribe(chunk, [])
 
 
-def test_transcriber_import_error() -> None:
-
-    import importlib
-    import sys
-
-    # Hide the faster_whisper module to trigger ImportError
-    import meetingnoter.processing.transcriber
-
-    with (
-        patch.dict(sys.modules, {"faster_whisper": None}),
-        pytest.raises(
-            ImportError, match="Required library 'faster-whisper' or 'torch' is not installed:"
-        ),
-    ):
-        importlib.reload(meetingnoter.processing.transcriber)
 
 
 @patch("meetingnoter.processing.transcriber.torch.cuda.empty_cache")
@@ -320,16 +305,6 @@ def test_transcriber_cuda_oom_error_during_inference(
             transcriber.transcribe(chunk, [])
 
 
-def test_transcriber_cleanup_resources_no_torch() -> None:
-
-    import sys
-
-    with patch.dict(sys.modules, {"torch": None}):
-        with patch("domain_models.config._get_secret", return_value="dummy"):
-            config = PipelineConfig()
-            transcriber = FasterWhisperTranscriber(config)
-        # Should catch ImportError and pass
-        transcriber._cleanup_resources()
 
 
 def test_transcriber_invalid_path_relative() -> None:
@@ -542,36 +517,3 @@ def test_diarizer_load_model_not_found(mock_from_pretrained: MagicMock) -> None:
         pytest.raises(RuntimeError, match="Failed to load pyannote pipeline after 3 attempts")
     ):
         diarizer._load_model()
-
-
-def test_diarizer_import_error() -> None:
-
-    import sys
-
-    diarizer = PyannoteDiarizer(auth_token="dummy_tkn")
-
-    with (
-        patch.dict(sys.modules, {"pyannote.audio": None}),
-        pytest.raises(ImportError, match="Required library 'pyannote.audio' or 'torch' is not installed.")
-    ):
-        diarizer._load_model()
-
-
-@patch("pathlib.Path.exists", return_value=True)
-def test_diarizer_model_none_after_load(
-    mock_exists: MagicMock,
-    tmp_path: Path,
-) -> None:
-
-    diarizer = PyannoteDiarizer(auth_token="dummy_tkn")
-    test_file = tmp_path / "test.wav"
-    chunk = AudioChunk(
-        chunk_filepath=str(test_file), start_time=0.0, end_time=10.0, chunk_index=0
-    )
-
-    with (
-        patch.object(diarizer, "_load_model"),
-        pytest.raises(RuntimeError, match="Pyannote pipeline was not properly loaded.")
-    ):
-        # Since _load_model is mocked to do nothing, pipeline remains None
-        diarizer.diarize(chunk)

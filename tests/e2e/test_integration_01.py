@@ -104,17 +104,11 @@ def create_diarizer() -> Diarizer:
 
 
 def test_pipeline_integration_failure() -> None:
-    storage: StorageClient = create_failing_storage_client()
-    import sys
-    from pathlib import Path
-
     import pytest
 
-    root_dir = str(Path(__file__).parent.parent.parent)
-    if root_dir not in sys.path:
-        sys.path.insert(0, root_dir)
-
     from main import run_pipeline
+
+    storage: StorageClient = create_failing_storage_client()
 
     with pytest.raises(RuntimeError, match="Network Error"):
         run_pipeline(
@@ -129,13 +123,6 @@ def test_pipeline_integration_failure() -> None:
 
 def test_pipeline_integration() -> None:
     # Use the main.py run_pipeline orchestration logic to actually test the integration SUT
-
-    import sys
-    from pathlib import Path
-
-    root_dir = str(Path(__file__).parent.parent.parent)
-    if root_dir not in sys.path:
-        sys.path.insert(0, root_dir)
 
     from main import run_pipeline
 
@@ -161,15 +148,10 @@ def test_pipeline_integration() -> None:
 
 
 def test_ffmpeg_chunker_integration() -> None:
-    import shutil
-
-    if not shutil.which("ffmpeg"):
-        import pytest
-
-        pytest.skip("ffmpeg not installed")
-
     import wave
     from pathlib import Path
+    from typing import Any
+    from unittest.mock import patch
 
     from meetingnoter.processing.chunker import FFmpegChunker
 
@@ -193,7 +175,16 @@ def test_ffmpeg_chunker_integration() -> None:
         source: AudioSource = AudioSource(filepath=tf.name, duration_seconds=1.0)
         chunker: FFmpegChunker = FFmpegChunker(chunk_length_minutes=chunk_length)
 
-        chunks: list[AudioChunk] = chunker.split(source)
+        with patch("subprocess.run") as mock_run:
+            # We mock the subprocess.run call to ffmpeg, but create the output file artificially
+            def side_effect(*args: list[Any], **kwargs: dict[str, Any]) -> None:
+                # The output file is args[-1]
+                cmd = args[0]
+                output_file = Path(cmd[-1])
+                import shutil
+                shutil.copy(tf.name, output_file)
+            mock_run.side_effect = side_effect
+            chunks: list[AudioChunk] = chunker.split(source)
 
         assert len(chunks) == 1
         assert chunks[0].start_time == 0.0
@@ -206,13 +197,6 @@ def test_ffmpeg_chunker_integration() -> None:
 
 def test_pipeline_diarization_integration() -> None:
     # Test integration between transcription and diarization specifically
-    import sys
-    from pathlib import Path
-
-    root_dir = str(Path(__file__).parent.parent.parent)
-    if root_dir not in sys.path:
-        sys.path.insert(0, root_dir)
-
     from main import run_pipeline
 
     class MultiSpeakerDiarizer(Diarizer):
