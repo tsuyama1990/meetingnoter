@@ -8,15 +8,11 @@ from meetingnoter.processing.transcriber import FasterWhisperTranscriber
 
 
 @patch("meetingnoter.processing.transcriber.WhisperModel")
-def test_transcriber_initialization(
-    mock_whisper_model: MagicMock, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setenv("GOOGLE_API_KEY", "env_dummy_key_123")
-    monkeypatch.setenv("PYANNOTE_AUTH_TOKEN", "env_dummy_token_123")
-    monkeypatch.setenv("FILE_ID", "env_dummy_file_123")
+def test_transcriber_initialization(mock_whisper_model: MagicMock) -> None:
 
-    config = PipelineConfig(transcriber_model_size="tiny")
-    transcriber = FasterWhisperTranscriber(config)
+    with patch("domain_models.config._get_secret", return_value="dummy"):
+        config = PipelineConfig(transcriber_model_size="tiny")
+        transcriber = FasterWhisperTranscriber(config)
 
     # Model should not be loaded on init
     assert transcriber.model is None
@@ -32,11 +28,8 @@ def test_transcriber_load_and_transcribe(
     mock_whisper_model: MagicMock,
     mock_is_file: MagicMock,
     tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("GOOGLE_API_KEY", "env_dummy_key_123")
-    monkeypatch.setenv("PYANNOTE_AUTH_TOKEN", "env_dummy_token_123")
-    monkeypatch.setenv("FILE_ID", "env_dummy_file_123")
+
     mock_model_instance = MagicMock()
     mock_whisper_model.return_value = mock_model_instance
 
@@ -53,7 +46,10 @@ def test_transcriber_load_and_transcribe(
 
     mock_model_instance.transcribe.return_value = ([mock_segment1, mock_segment2], None)
 
-    with patch("pathlib.Path.is_relative_to", return_value=True):
+    with (
+        patch("pathlib.Path.is_relative_to", return_value=True),
+        patch("domain_models.config._get_secret", return_value="dummy"),
+    ):
         config = PipelineConfig(transcriber_language="ja")
         transcriber = FasterWhisperTranscriber(config)
 
@@ -88,13 +84,11 @@ def test_transcriber_load_and_transcribe(
     assert results[1].text == "World"
 
 
-def test_transcriber_file_not_found(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("GOOGLE_API_KEY", "env_dummy_key_123")
-    monkeypatch.setenv("PYANNOTE_AUTH_TOKEN", "env_dummy_token_123")
-    monkeypatch.setenv("FILE_ID", "env_dummy_file_123")
+def test_transcriber_file_not_found() -> None:
 
-    config = PipelineConfig()
-    transcriber = FasterWhisperTranscriber(config)
+    with patch("domain_models.config._get_secret", return_value="dummy"):
+        config = PipelineConfig()
+        transcriber = FasterWhisperTranscriber(config)
 
     chunk = AudioChunk(
         chunk_filepath="/path/to/nonexistent.wav", start_time=0.0, end_time=10.0, chunk_index=0
@@ -110,18 +104,16 @@ def test_transcriber_inference_error(
     mock_whisper_model: MagicMock,
     mock_is_file: MagicMock,
     tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("GOOGLE_API_KEY", "env_dummy_key_123")
-    monkeypatch.setenv("PYANNOTE_AUTH_TOKEN", "env_dummy_token_123")
-    monkeypatch.setenv("FILE_ID", "env_dummy_file_123")
+
     mock_model_instance = MagicMock()
     mock_model_instance.transcribe.side_effect = Exception("Inference failed")
     mock_whisper_model.return_value = mock_model_instance
 
     with patch("pathlib.Path.is_relative_to", return_value=True):
-        config = PipelineConfig()
-        transcriber = FasterWhisperTranscriber(config)
+        with patch("domain_models.config._get_secret", return_value="dummy"):
+            config = PipelineConfig()
+            transcriber = FasterWhisperTranscriber(config)
 
         test_file = tmp_path / "test.wav"
         test_file.touch()
@@ -141,16 +133,14 @@ def test_transcriber_load_model_not_found(
     mock_whisper_model: MagicMock,
     mock_is_file: MagicMock,
     tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("GOOGLE_API_KEY", "env_dummy_key_123")
-    monkeypatch.setenv("PYANNOTE_AUTH_TOKEN", "env_dummy_token_123")
-    monkeypatch.setenv("FILE_ID", "env_dummy_file_123")
+
     mock_whisper_model.side_effect = Exception("Model initialization failed")
 
     with patch("pathlib.Path.is_relative_to", return_value=True):
-        config = PipelineConfig()
-        transcriber = FasterWhisperTranscriber(config)
+        with patch("domain_models.config._get_secret", return_value="dummy"):
+            config = PipelineConfig()
+            transcriber = FasterWhisperTranscriber(config)
 
         test_file = tmp_path / "test.wav"
         test_file.touch()
@@ -168,15 +158,13 @@ def test_transcriber_model_none_after_load(
     mock_whisper_model: MagicMock,
     mock_is_file: MagicMock,
     tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("GOOGLE_API_KEY", "env_dummy_key_123")
-    monkeypatch.setenv("PYANNOTE_AUTH_TOKEN", "env_dummy_token_123")
-    monkeypatch.setenv("FILE_ID", "env_dummy_file_123")
+
     with patch("pathlib.Path.is_relative_to", return_value=True):
         # Simulate a scenario where model is still None after _load_model
-        config = PipelineConfig()
-        transcriber = FasterWhisperTranscriber(config)
+        with patch("domain_models.config._get_secret", return_value="dummy"):
+            config = PipelineConfig()
+            transcriber = FasterWhisperTranscriber(config)
 
         test_file = tmp_path / "test.wav"
         test_file.touch()
@@ -192,10 +180,7 @@ def test_transcriber_model_none_after_load(
             transcriber.transcribe(chunk, [])
 
 
-def test_transcriber_import_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("GOOGLE_API_KEY", "env_dummy_key_123")
-    monkeypatch.setenv("PYANNOTE_AUTH_TOKEN", "env_dummy_token_123")
-    monkeypatch.setenv("FILE_ID", "env_dummy_file_123")
+def test_transcriber_import_error() -> None:
 
     import importlib
     import sys
@@ -222,18 +207,16 @@ def test_transcriber_garbage_collection(
     mock_whisper_model: MagicMock,
     mock_is_file: MagicMock,
     tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("GOOGLE_API_KEY", "env_dummy_key_123")
-    monkeypatch.setenv("PYANNOTE_AUTH_TOKEN", "env_dummy_token_123")
-    monkeypatch.setenv("FILE_ID", "env_dummy_file_123")
+
     mock_model_instance = MagicMock()
     mock_whisper_model.return_value = mock_model_instance
     mock_model_instance.transcribe.return_value = ([], None)
 
     with patch("pathlib.Path.is_relative_to", return_value=True):
-        config = PipelineConfig()
-        transcriber = FasterWhisperTranscriber(config)
+        with patch("domain_models.config._get_secret", return_value="dummy"):
+            config = PipelineConfig()
+            transcriber = FasterWhisperTranscriber(config)
 
         test_file = tmp_path / "test.wav"
         test_file.touch()
@@ -255,16 +238,14 @@ def test_transcriber_cuda_oom_error_during_load(
     mock_whisper_model: MagicMock,
     mock_is_file: MagicMock,
     tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("GOOGLE_API_KEY", "env_dummy_key_123")
-    monkeypatch.setenv("PYANNOTE_AUTH_TOKEN", "env_dummy_token_123")
-    monkeypatch.setenv("FILE_ID", "env_dummy_file_123")
+
     mock_whisper_model.side_effect = RuntimeError("CUDA out of memory")
 
     with patch("pathlib.Path.is_relative_to", return_value=True):
-        config = PipelineConfig()
-        transcriber = FasterWhisperTranscriber(config)
+        with patch("domain_models.config._get_secret", return_value="dummy"):
+            config = PipelineConfig()
+            transcriber = FasterWhisperTranscriber(config)
 
         test_file = tmp_path / "test.wav"
         test_file.touch()
@@ -284,18 +265,16 @@ def test_transcriber_cuda_oom_error_during_inference(
     mock_whisper_model: MagicMock,
     mock_is_file: MagicMock,
     tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("GOOGLE_API_KEY", "env_dummy_key_123")
-    monkeypatch.setenv("PYANNOTE_AUTH_TOKEN", "env_dummy_token_123")
-    monkeypatch.setenv("FILE_ID", "env_dummy_file_123")
+
     mock_model_instance = MagicMock()
     mock_model_instance.transcribe.side_effect = RuntimeError("CUDA out of memory")
     mock_whisper_model.return_value = mock_model_instance
 
     with patch("pathlib.Path.is_relative_to", return_value=True):
-        config = PipelineConfig()
-        transcriber = FasterWhisperTranscriber(config)
+        with patch("domain_models.config._get_secret", return_value="dummy"):
+            config = PipelineConfig()
+            transcriber = FasterWhisperTranscriber(config)
 
         test_file = tmp_path / "test.wav"
         test_file.touch()
@@ -307,25 +286,23 @@ def test_transcriber_cuda_oom_error_during_inference(
             transcriber.transcribe(chunk, [])
 
 
-def test_transcriber_cleanup_resources_no_torch(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("GOOGLE_API_KEY", "env_dummy_key_123")
-    monkeypatch.setenv("PYANNOTE_AUTH_TOKEN", "env_dummy_token_123")
-    monkeypatch.setenv("FILE_ID", "env_dummy_file_123")
+def test_transcriber_cleanup_resources_no_torch() -> None:
+
     import sys
 
     with patch.dict(sys.modules, {"torch": None}):
-        config = PipelineConfig()
-        transcriber = FasterWhisperTranscriber(config)
+        with patch("domain_models.config._get_secret", return_value="dummy"):
+            config = PipelineConfig()
+            transcriber = FasterWhisperTranscriber(config)
         # Should catch ImportError and pass
         transcriber._cleanup_resources()
 
 
-def test_transcriber_invalid_path_relative(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("GOOGLE_API_KEY", "env_dummy_key_123")
-    monkeypatch.setenv("PYANNOTE_AUTH_TOKEN", "env_dummy_token_123")
-    monkeypatch.setenv("FILE_ID", "env_dummy_file_123")
-    config = PipelineConfig()
-    transcriber = FasterWhisperTranscriber(config)
+def test_transcriber_invalid_path_relative() -> None:
+
+    with patch("domain_models.config._get_secret", return_value="dummy"):
+        config = PipelineConfig()
+        transcriber = FasterWhisperTranscriber(config)
 
     with (
         patch("pathlib.Path.is_file", return_value=True),
@@ -341,18 +318,16 @@ def test_transcriber_general_error_during_inference(
     mock_whisper_model: MagicMock,
     mock_is_file: MagicMock,
     tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("GOOGLE_API_KEY", "env_dummy_key_123")
-    monkeypatch.setenv("PYANNOTE_AUTH_TOKEN", "env_dummy_token_123")
-    monkeypatch.setenv("FILE_ID", "env_dummy_file_123")
+
     mock_model_instance = MagicMock()
     mock_model_instance.transcribe.side_effect = Exception("Some other error")
     mock_whisper_model.return_value = mock_model_instance
 
     with patch("pathlib.Path.is_relative_to", return_value=True):
-        config = PipelineConfig()
-        transcriber = FasterWhisperTranscriber(config)
+        with patch("domain_models.config._get_secret", return_value="dummy"):
+            config = PipelineConfig()
+            transcriber = FasterWhisperTranscriber(config)
 
         test_file = tmp_path / "test.wav"
         test_file.touch()
@@ -372,16 +347,14 @@ def test_transcriber_general_runtime_error_during_load(
     mock_whisper_model: MagicMock,
     mock_is_file: MagicMock,
     tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("GOOGLE_API_KEY", "env_dummy_key_123")
-    monkeypatch.setenv("PYANNOTE_AUTH_TOKEN", "env_dummy_token_123")
-    monkeypatch.setenv("FILE_ID", "env_dummy_file_123")
+
     mock_whisper_model.side_effect = RuntimeError("Other runtime load error")
 
     with patch("pathlib.Path.is_relative_to", return_value=True):
-        config = PipelineConfig()
-        transcriber = FasterWhisperTranscriber(config)
+        with patch("domain_models.config._get_secret", return_value="dummy"):
+            config = PipelineConfig()
+            transcriber = FasterWhisperTranscriber(config)
 
         test_file = tmp_path / "test.wav"
         test_file.touch()
@@ -401,18 +374,16 @@ def test_transcriber_general_runtime_error_during_inference(
     mock_whisper_model: MagicMock,
     mock_is_file: MagicMock,
     tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("GOOGLE_API_KEY", "env_dummy_key_123")
-    monkeypatch.setenv("PYANNOTE_AUTH_TOKEN", "env_dummy_token_123")
-    monkeypatch.setenv("FILE_ID", "env_dummy_file_123")
+
     mock_model_instance = MagicMock()
     mock_model_instance.transcribe.side_effect = RuntimeError("Other runtime inference error")
     mock_whisper_model.return_value = mock_model_instance
 
     with patch("pathlib.Path.is_relative_to", return_value=True):
-        config = PipelineConfig()
-        transcriber = FasterWhisperTranscriber(config)
+        with patch("domain_models.config._get_secret", return_value="dummy"):
+            config = PipelineConfig()
+            transcriber = FasterWhisperTranscriber(config)
 
         test_file = tmp_path / "test.wav"
         test_file.touch()
@@ -426,15 +397,11 @@ def test_transcriber_general_runtime_error_during_inference(
             transcriber.transcribe(chunk, [])
 
 
-def test_transcriber_cleanup_resources_torch_cuda_empty_cache(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("GOOGLE_API_KEY", "env_dummy_key_123")
-    monkeypatch.setenv("PYANNOTE_AUTH_TOKEN", "env_dummy_token_123")
-    monkeypatch.setenv("FILE_ID", "env_dummy_file_123")
+def test_transcriber_cleanup_resources_torch_cuda_empty_cache() -> None:
 
-    config = PipelineConfig()
-    transcriber = FasterWhisperTranscriber(config)
+    with patch("domain_models.config._get_secret", return_value="dummy"):
+        config = PipelineConfig()
+        transcriber = FasterWhisperTranscriber(config)
 
     with (
         patch("torch.cuda.is_available", return_value=True),

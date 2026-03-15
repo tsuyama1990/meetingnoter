@@ -23,7 +23,13 @@ def _get_secret(key_name: str) -> str:
                 return str(val)
         except getattr(__import__("google").colab.userdata, "SecretNotFoundError", Exception):
             pass
-    msg = f"Missing required configuration secret: {key_name}"
+
+    import logging
+
+    logger = logging.getLogger(__name__)
+    logger.debug("Missing required configuration secret: %s", key_name)
+
+    msg = "Missing required configuration secret"
     raise ValueError(msg)
 
 

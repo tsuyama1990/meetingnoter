@@ -150,28 +150,16 @@ def cell_markdown_c03(mo: Any) -> Any:
 @app.cell
 def cell_tests_c03(mo: Any) -> tuple[Callable[[], Any], Any]:
     def test_c03_ffmpeg_chunker() -> Any:
+        import shutil
         import tempfile
         import wave
         from pathlib import Path
-        from unittest.mock import patch
 
         from domain_models import AudioChunk, AudioSource
         from meetingnoter.processing.chunker import FFmpegChunker
 
-        def mock_subprocess_run(*args: Any, **kwargs: Any) -> Any:
-            import subprocess
-
-            cmd = args[0]
-            if "ffmpeg" in cmd:
-                # Instead of running ffmpeg, just create a dummy output file
-                out_path = Path(cmd[-1])
-                # Write some dummy bytes so it's not empty and passes the stat check
-                with out_path.open("wb") as f:
-                    f.write(b"mock data")
-                return subprocess.CompletedProcess(args=cmd, returncode=0)
-            if "check" not in kwargs:
-                kwargs["check"] = True
-            return subprocess.run(*args, **kwargs)  # noqa: S603, PLW1510
+        if not shutil.which("ffmpeg"):
+            return mo.md("**Cycle 03 UAT Skipped:** FFmpeg is not installed on this system.")
 
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir) / "test.wav"
@@ -186,10 +174,7 @@ def cell_tests_c03(mo: Any) -> tuple[Callable[[], Any], Any]:
                 source = AudioSource(filepath=str(temp_path), duration_seconds=3.0)
                 # Create a chunker that splits every 1 minute (should only produce 1 chunk for 3s audio)
                 chunker = FFmpegChunker(chunk_length_minutes=1)
-
-                # Mock subprocess to avoid relying on host system's ffmpeg installation
-                with patch("subprocess.run", side_effect=mock_subprocess_run):
-                    chunks: list[AudioChunk] = chunker.split(source)
+                chunks: list[AudioChunk] = chunker.split(source)
 
                 output_msg = f"**Cycle 03 Chunker Passed!**\n\nGenerated {len(chunks)} chunks successfully.\n\n"
                 for chunk in chunks:
@@ -259,11 +244,8 @@ def cell_tests_c05_3(mo: Any) -> tuple[Any, ...]:
             f"**Cycle 05 UAT Skipped:** Required dependencies (faster-whisper, torch) are missing. {e}"
         )
     else:
-        import os
+        from unittest.mock import patch
 
-        os.environ["GOOGLE_API_KEY"] = "dummy"
-        os.environ["PYANNOTE_AUTH_TOKEN"] = "dummy"
-        os.environ["FILE_ID"] = "dummy"
         # 1. Setup a dummy wav file
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf:
             with wave.open(tf.name, "wb") as w:
@@ -281,12 +263,13 @@ def cell_tests_c05_3(mo: Any) -> tuple[Any, ...]:
         speech_segments_01 = [_SpeechSegment(start_time=10.0, end_time=15.0)]
 
         # We test the *actual functionality* but use "tiny" model for execution speed
-        _config = _PipelineConfig(
-            transcriber_language="ja",
-            transcriber_model_size="tiny",
-            transcriber_compute_type="int8",
-        )
-        transcriber_01 = _FasterWhisperTranscriber(_config)
+        with patch("domain_models.config._get_secret", return_value="test"):
+            _config = _PipelineConfig(
+                transcriber_language="ja",
+                transcriber_model_size="tiny",
+                transcriber_compute_type="int8",
+            )
+            transcriber_01 = _FasterWhisperTranscriber(_config)
 
         try:
             results_01 = transcriber_01.transcribe(chunk_01, speech_segments_01)
@@ -315,14 +298,11 @@ def cell_tests_c05_4(mo: Any) -> tuple[Any, ...]:
     except ImportError:
         return (mo.md("**Cycle 05 Error Handling UAT Skipped.**"),)
 
-    import os
+    from unittest.mock import patch
 
-    os.environ["GOOGLE_API_KEY"] = "dummy"
-    os.environ["PYANNOTE_AUTH_TOKEN"] = "dummy"
-    os.environ["FILE_ID"] = "dummy"
-
-    _config_err = _PipelineConfig_err(transcriber_language="ja", transcriber_model_size="tiny")
-    transcriber_err = _FasterWhisperTranscriber_err(_config_err)
+    with patch("domain_models.config._get_secret", return_value="test"):
+        _config_err = _PipelineConfig_err(transcriber_language="ja", transcriber_model_size="tiny")
+        transcriber_err = _FasterWhisperTranscriber_err(_config_err)
 
     chunk_err = _AudioChunk_err(
         chunk_filepath="/path/to/nonexistent.wav", start_time=0.0, end_time=10.0, chunk_index=0

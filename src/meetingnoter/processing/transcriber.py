@@ -32,6 +32,11 @@ class FasterWhisperTranscriber(Transcriber):
 
     def _validate_audio_file(self, file_path: Path) -> None:
         path = file_path.resolve()
+
+        if path.is_symlink():
+            msg = f"Audio path {path} is a symlink, which is not permitted."
+            raise ValueError(msg)
+
         if not path.is_file():
             msg = f"Audio chunk file not found: {path}"
             raise FileNotFoundError(msg)
