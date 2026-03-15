@@ -106,8 +106,12 @@ def test_transcriber_file_not_found() -> None:
         config = PipelineConfig()
         transcriber = FasterWhisperTranscriber(config)
 
+        import tempfile
     chunk = AudioChunk(
-        chunk_filepath="/path/to/nonexistent.wav", start_time=0.0, end_time=10.0, chunk_index=0
+        chunk_filepath=f"{tempfile.gettempdir()}/nonexistent.wav",
+        start_time=0.0,
+        end_time=10.0,
+        chunk_index=0,
     )
 
     with pytest.raises(FileNotFoundError, match="Audio chunk file not found"):
@@ -324,12 +328,13 @@ def test_transcriber_invalid_path_relative() -> None:
         config = PipelineConfig()
         transcriber = FasterWhisperTranscriber(config)
 
+        import tempfile
     with (
         patch("pathlib.Path.is_file", return_value=True),
         patch("pathlib.Path.is_symlink", return_value=True),
-        pytest.raises(ValueError, match="is a symlink, which is not permitted."),
+        pytest.raises(ValueError, match="Invalid audio file path detected"),
     ):
-        transcriber._validate_audio_file(Path("/etc/passwd"))
+        transcriber._validate_audio_file(Path(tempfile.gettempdir()) / "test.wav")
 
 
 @patch("pathlib.Path.is_file", return_value=True)

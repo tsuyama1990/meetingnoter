@@ -380,48 +380,43 @@ def cell_tests_c07_2(mo: Any) -> tuple[Any, ...]:
 
     def test_c07_primary_path() -> Any:
         try:
-            import importlib
             import os
             from unittest.mock import MagicMock, patch
 
             import requests
 
-            os.environ["GOOGLE_API_KEY"] = "dummy_key"
-            os.environ["PYANNOTE_AUTH_TOKEN"] = "hf_dummy_key"
-            os.environ["FILE_ID"] = "dummy_key"
+            os.environ["GOOGLE_API_KEY"] = os.urandom(8).hex()
+            os.environ["PYANNOTE_AUTH_TOKEN"] = "hf_" + os.urandom(8).hex()
+            os.environ["FILE_ID"] = os.urandom(8).hex()
 
             _config = _C07Config()
             with (
                 patch.object(_config, "transcriber_model_size", "tiny"),
                 patch.object(_config, "transcriber_compute_type", "int8"),
             ):
-                drive_client_module = importlib.import_module(_config.drive_client_module_path)
-                chunker_module = importlib.import_module(_config.chunker_module_path)
-                vad_module = importlib.import_module(_config.vad_module_path)
-                transcriber_module = importlib.import_module(_config.transcriber_module_path)
-                diarizer_module = importlib.import_module(_config.diarizer_module_path)
+                from meetingnoter.ingestion.drive_client import GoogleDriveClient
+                from meetingnoter.processing.chunker import FFmpegChunker
+                from meetingnoter.processing.diarizer import PyannoteDiarizer
+                from meetingnoter.processing.transcriber import FasterWhisperTranscriber
+                from meetingnoter.processing.vad import SileroVADDetector
 
                 # Instantiate real components instead of mocks.
-                _c07_storage = drive_client_module.GoogleDriveClient(config=_config)
-                _c07_splitter = chunker_module.FFmpegChunker(
+                _c07_storage = GoogleDriveClient(config=_config)
+                _c07_splitter = FFmpegChunker(
                     ffmpeg_path=_config.ffmpeg_path,
                     chunk_length_minutes=_config.chunk_length_minutes,
                 )
-                _c07_detector = vad_module.SileroVADDetector(
+                _c07_detector = SileroVADDetector(
                     threshold=_config.vad_threshold,
                     min_speech_duration_ms=_config.vad_min_speech_duration_ms,
                     min_silence_duration_ms=_config.vad_min_silence_duration_ms,
                     model_path=_config.silero_vad_model_path,
                 )
-                _c07_transcriber = transcriber_module.FasterWhisperTranscriber(_config)
+                _c07_transcriber = FasterWhisperTranscriber(_config)
                 # Since pyannote requires an actual HF token to init correctly or we catch exception,
                 # but we're testing primary path, we will mock the pipeline constructor to just not crash.
-                with patch.object(
-                    diarizer_module.PyannoteDiarizer, "_load_model", return_value=None
-                ):
-                    _c07_diarizer = diarizer_module.PyannoteDiarizer(
-                        auth_token=_config.pyannote_auth_token
-                    )
+                with patch.object(PyannoteDiarizer, "_load_model", return_value=None):
+                    _c07_diarizer = PyannoteDiarizer(auth_token=_config.pyannote_auth_token)
 
             # However, to avoid hitting real APIs without credentials, we intercept the GoogleDrive HTTP call using requests.Session mock:
             _mock_http = MagicMock(spec=requests.Session)
@@ -491,42 +486,37 @@ def cell_tests_c07_3(mo: Any) -> tuple[Any, ...]:
 
     def test_c07_error_handling() -> Any:
         try:
-            import importlib
             import os
 
-            os.environ["GOOGLE_API_KEY"] = "dummy_key"
-            os.environ["PYANNOTE_AUTH_TOKEN"] = "hf_dummy_key"
-            os.environ["FILE_ID"] = "dummy_key"
+            os.environ["GOOGLE_API_KEY"] = os.urandom(8).hex()
+            os.environ["PYANNOTE_AUTH_TOKEN"] = "hf_" + os.urandom(8).hex()
+            os.environ["FILE_ID"] = os.urandom(8).hex()
 
             _config_err = _C07ErrConfig()
             with (
                 patch.object(_config_err, "transcriber_model_size", "tiny"),
                 patch.object(_config_err, "transcriber_compute_type", "int8"),
             ):
-                drive_client_module = importlib.import_module(_config_err.drive_client_module_path)
-                chunker_module = importlib.import_module(_config_err.chunker_module_path)
-                vad_module = importlib.import_module(_config_err.vad_module_path)
-                transcriber_module = importlib.import_module(_config_err.transcriber_module_path)
-                diarizer_module = importlib.import_module(_config_err.diarizer_module_path)
+                from meetingnoter.ingestion.drive_client import GoogleDriveClient
+                from meetingnoter.processing.chunker import FFmpegChunker
+                from meetingnoter.processing.diarizer import PyannoteDiarizer
+                from meetingnoter.processing.transcriber import FasterWhisperTranscriber
+                from meetingnoter.processing.vad import SileroVADDetector
 
-                _c07_err_storage = drive_client_module.GoogleDriveClient(config=_config_err)
-                _c07_err_splitter = chunker_module.FFmpegChunker(
+                _c07_err_storage = GoogleDriveClient(config=_config_err)
+                _c07_err_splitter = FFmpegChunker(
                     ffmpeg_path=_config_err.ffmpeg_path,
                     chunk_length_minutes=_config_err.chunk_length_minutes,
                 )
-                _c07_err_detector = vad_module.SileroVADDetector(
+                _c07_err_detector = SileroVADDetector(
                     threshold=_config_err.vad_threshold,
                     min_speech_duration_ms=_config_err.vad_min_speech_duration_ms,
                     min_silence_duration_ms=_config_err.vad_min_silence_duration_ms,
                     model_path=_config_err.silero_vad_model_path,
                 )
-                _c07_err_transcriber = transcriber_module.FasterWhisperTranscriber(_config_err)
-                with patch.object(
-                    diarizer_module.PyannoteDiarizer, "_load_model", return_value=None
-                ):
-                    _c07_err_diarizer = diarizer_module.PyannoteDiarizer(
-                        auth_token=_config_err.pyannote_auth_token
-                    )
+                _c07_err_transcriber = FasterWhisperTranscriber(_config_err)
+                with patch.object(PyannoteDiarizer, "_load_model", return_value=None):
+                    _c07_err_diarizer = PyannoteDiarizer(auth_token=_config_err.pyannote_auth_token)
 
             # Inject error into the real StorageClient by mocking its HTTP client to simulate an API drop
             _mock_http_err = MagicMock(spec=requests.Session)

@@ -139,9 +139,9 @@ def test_google_drive_client_success(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Set up safe test configuration instead of hardcoding API keys
-    monkeypatch.setenv("GOOGLE_API_KEY", "env_dummy_key_123")
-    monkeypatch.setenv("PYANNOTE_AUTH_TOKEN", "env_dummy_token_123")
-    monkeypatch.setenv("FILE_ID", "env_dummy_file_123")
+    monkeypatch.setenv("GOOGLE_API_KEY", __import__("os").urandom(8).hex())
+    monkeypatch.setenv("PYANNOTE_AUTH_TOKEN", "hf_" + __import__("os").urandom(8).hex())
+    monkeypatch.setenv("FILE_ID", __import__("os").urandom(8).hex())
     config = PipelineConfig()
 
     mock_http = MagicMock(spec=requests.Session)
@@ -163,9 +163,9 @@ def test_google_drive_client_success(
 
 
 def test_google_drive_client_failure(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("GOOGLE_API_KEY", "env_dummy_key_123")
-    monkeypatch.setenv("PYANNOTE_AUTH_TOKEN", "env_dummy_token_123")
-    monkeypatch.setenv("FILE_ID", "env_dummy_file_123")
+    monkeypatch.setenv("GOOGLE_API_KEY", __import__("os").urandom(8).hex())
+    monkeypatch.setenv("PYANNOTE_AUTH_TOKEN", "hf_" + __import__("os").urandom(8).hex())
+    monkeypatch.setenv("FILE_ID", __import__("os").urandom(8).hex())
     config = PipelineConfig()
 
     mock_http = MagicMock(spec=requests.Session)
@@ -177,9 +177,9 @@ def test_google_drive_client_failure(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_google_drive_client_http_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("GOOGLE_API_KEY", "env_dummy_key_123")
-    monkeypatch.setenv("PYANNOTE_AUTH_TOKEN", "env_dummy_token_123")
-    monkeypatch.setenv("FILE_ID", "env_dummy_file_123")
+    monkeypatch.setenv("GOOGLE_API_KEY", __import__("os").urandom(8).hex())
+    monkeypatch.setenv("PYANNOTE_AUTH_TOKEN", "hf_" + __import__("os").urandom(8).hex())
+    monkeypatch.setenv("FILE_ID", __import__("os").urandom(8).hex())
     config = PipelineConfig()
 
     mock_http = MagicMock(spec=requests.Session)
@@ -191,9 +191,9 @@ def test_google_drive_client_http_error(monkeypatch: pytest.MonkeyPatch) -> None
 
 
 def test_google_drive_client_unexpected_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("GOOGLE_API_KEY", "env_dummy_key_123")
-    monkeypatch.setenv("PYANNOTE_AUTH_TOKEN", "env_dummy_token_123")
-    monkeypatch.setenv("FILE_ID", "env_dummy_file_123")
+    monkeypatch.setenv("GOOGLE_API_KEY", __import__("os").urandom(8).hex())
+    monkeypatch.setenv("PYANNOTE_AUTH_TOKEN", "hf_" + __import__("os").urandom(8).hex())
+    monkeypatch.setenv("FILE_ID", __import__("os").urandom(8).hex())
     config = PipelineConfig()
 
     mock_http = MagicMock(spec=requests.Session)

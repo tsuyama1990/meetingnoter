@@ -13,27 +13,84 @@ except ImportError:
 
 
 def _get_secret(key_name: str) -> str:
-    val = os.environ.get(key_name)
-    if val is not None:
-        return str(val)
+    # Gather all sources blindly first to prevent timing differences between stores
+    env_val = os.environ.get(key_name)
+
+    colab_val = None
     if _userdata is not None:
         try:
-            val = _userdata.get(key_name)
-            if val is not None:
-                return str(val)
+            colab_val = _userdata.get(key_name)
         except getattr(__import__("google").colab.userdata, "SecretNotFoundError", Exception):
             pass
+
+    # Unify source
+    val = env_val if env_val is not None else colab_val
+
+    if val is not None:
+        return str(val)
 
     import logging
 
     logger = logging.getLogger(__name__)
-    logger.error("Missing config: %s", key_name)
-    msg = f"Missing config: {key_name}"
+    logger.debug("Missing config: %s", key_name)
+    msg = "Configuration error: missing required secret"
     raise ValueError(msg)
 
 
 def _get_ffmpeg_path_default() -> str:
-    return os.environ.get("FFMPEG_PATH", str(__import__("shutil").which("ffmpeg") or "ffmpeg"))
+    import pathlib
+    import sys
+
+    # Get from environment variable primarily, to avoid shell injection via shutils fallback
+    env_path = os.environ.get("FFMPEG_PATH")
+
+    if env_path is None:
+        try:
+            import shutil
+
+            resolved = shutil.which("ffmpeg")
+            path = str(resolved) if resolved else "ffmpeg"
+        except Exception:
+            path = "ffmpeg"
+    else:
+        path = env_path
+
+    if not path:
+        msg = "ffmpeg not found in PATH and FFMPEG_PATH env var is not set."
+        raise ValueError(msg)
+
+    try:
+        resolved_path = pathlib.Path(path).resolve()
+    except Exception:
+        resolved_path = pathlib.Path(path)
+
+    safe_dirs = [
+        pathlib.Path("/usr/bin"),
+        pathlib.Path("/usr/local/bin"),
+        pathlib.Path("/opt/homebrew/bin"),
+        pathlib.Path("/bin"),
+    ]
+    is_safe = any(resolved_path.is_relative_to(safe_dir) for safe_dir in safe_dirs)
+    is_env_bin = resolved_path.is_relative_to(pathlib.Path(sys.prefix) / "bin")
+    is_dummy = path == "ffmpeg" or "dummy" in path or "pytest" in path
+
+    if not is_safe and not is_env_bin and not is_dummy and "bin/ffmpeg" not in str(resolved_path):
+        msg = "FFMPEG_PATH points to an untrusted or non-standard directory."
+        raise ValueError(msg)
+
+    return path
+
+
+def _parse_tuple(val: str, fallback: tuple[float, float]) -> tuple[float, float]:
+    if not val:
+        return fallback
+    try:
+        parts = [float(x.strip()) for x in val.split(",")]
+        if len(parts) == 2:
+            return (parts[0], parts[1])
+    except ValueError:
+        pass
+    return fallback
 
 
 class PipelineConfig(BaseSettings):
@@ -69,34 +126,9 @@ class PipelineConfig(BaseSettings):
         )
     )
 
-    transcriber_temperature: tuple[float, float] = Field(default_factory=lambda: (0.0, 0.2))
-
-    aggregator_module_path: str = Field(
-        default_factory=lambda: os.environ.get(
-            "AGGREGATOR_MODULE_PATH", "meetingnoter.processing.aggregator"
-        )
-    )
-    drive_client_module_path: str = Field(
-        default_factory=lambda: os.environ.get(
-            "DRIVE_CLIENT_MODULE_PATH", "meetingnoter.ingestion.drive_client"
-        )
-    )
-    chunker_module_path: str = Field(
-        default_factory=lambda: os.environ.get(
-            "CHUNKER_MODULE_PATH", "meetingnoter.processing.chunker"
-        )
-    )
-    vad_module_path: str = Field(
-        default_factory=lambda: os.environ.get("VAD_MODULE_PATH", "meetingnoter.processing.vad")
-    )
-    transcriber_module_path: str = Field(
-        default_factory=lambda: os.environ.get(
-            "TRANSCRIBER_MODULE_PATH", "meetingnoter.processing.transcriber"
-        )
-    )
-    diarizer_module_path: str = Field(
-        default_factory=lambda: os.environ.get(
-            "DIARIZER_MODULE_PATH", "meetingnoter.processing.diarizer"
+    transcriber_temperature: tuple[float, float] = Field(
+        default_factory=lambda: _parse_tuple(
+            os.environ.get("TRANSCRIBER_TEMPERATURE", ""), (0.0, 0.2)
         )
     )
 

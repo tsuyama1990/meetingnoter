@@ -31,14 +31,25 @@ class FasterWhisperTranscriber(Transcriber):
             torch.cuda.empty_cache()
 
     def _validate_audio_file(self, file_path: Path) -> None:
+        import logging
+        import tempfile
+
+        logger = logging.getLogger(__name__)
         path = file_path.resolve()
 
         if path.is_symlink():
-            msg = f"Audio path {path} is a symlink, which is not permitted."
+            logger.debug("Symlink violation detected for path: %s", path)
+            msg = "Invalid audio file path detected."
+            raise ValueError(msg)
+
+        if not path.is_relative_to(Path(tempfile.gettempdir()).resolve()):
+            logger.debug("Directory traversal or invalid path detected for: %s", path)
+            msg = "Invalid audio file path detected."
             raise ValueError(msg)
 
         if not path.is_file():
-            msg = f"Audio chunk file not found: {path}"
+            logger.debug("Audio chunk file not found at: %s", path)
+            msg = "Audio chunk file not found."
             raise FileNotFoundError(msg)
 
     def _load_model(self) -> None:
