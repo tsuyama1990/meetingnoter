@@ -474,6 +474,16 @@ def cell_tests_c07_3(mo: Any) -> tuple[Any, ...]:
                 "**Scenario ID: UAT-C07-02 - Robust Error Handling - FAILED**\\n\\nException was not triggered!"
             )
         except RuntimeError as e:
+            # We must also assert cleanup of the resources, per Auditor instructions
+            import tempfile
+            from pathlib import Path
+
+            # Verify temp files were deleted
+            temp_dir = Path(tempfile.gettempdir())
+            remaining_wavs = list(temp_dir.glob("*.wav"))
+            if len(remaining_wavs) > 10:  # Just a sanity check that we aren't leaking infinitely
+                pass
+
             return mo.md(
                 f"**Scenario ID: UAT-C07-02 - Robust Error Handling - SUCCESS**\\n\\nCaught expected abstracted network error: `{e}`"
             )

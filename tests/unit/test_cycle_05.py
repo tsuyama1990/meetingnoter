@@ -70,29 +70,33 @@ def test_transcriber_load_and_transcribe(
 
     speech_segments = [SpeechSegment(start_time=10.0, end_time=15.0)]
 
-    results = transcriber.transcribe(chunk, speech_segments)
+    with patch.object(transcriber, "_cleanup_resources") as mock_cleanup:
+        results = transcriber.transcribe(chunk, speech_segments)
 
-    # Check that model was loaded
-    assert transcriber.model is not None
-    mock_whisper_model.assert_called_once()
+        # Check that model was loaded
+        assert transcriber.model is not None
+        mock_whisper_model.assert_called_once()
 
-    # Check that transcribe was called with correct parameters
-    call_kwargs = mock_model_instance.transcribe.call_args.kwargs
-    assert call_kwargs["language"] == "ja"
-    assert call_kwargs["compression_ratio_threshold"] is None
-    assert call_kwargs["log_prob_threshold"] is None
-    assert call_kwargs["no_speech_threshold"] is None
-    assert call_kwargs["condition_on_previous_text"] is False
+        # Check that transcribe was called with correct parameters
+        call_kwargs = mock_model_instance.transcribe.call_args.kwargs
+        assert call_kwargs["language"] == "ja"
+        assert call_kwargs["compression_ratio_threshold"] is None
+        assert call_kwargs["log_prob_threshold"] is None
+        assert call_kwargs["no_speech_threshold"] is None
+        assert call_kwargs["condition_on_previous_text"] is False
 
-    # Check results mapping to global timestamps
-    assert len(results) == 2
-    assert results[0].start_time == 10.5
-    assert results[0].end_time == 12.0
-    assert results[0].text == "Hello"
+        # Check results mapping to global timestamps
+        assert len(results) == 2
+        assert results[0].start_time == 10.5
+        assert results[0].end_time == 12.0
+        assert results[0].text == "Hello"
 
-    assert results[1].start_time == 12.5
-    assert results[1].end_time == 14.0
-    assert results[1].text == "World"
+        assert results[1].start_time == 12.5
+        assert results[1].end_time == 14.0
+        assert results[1].text == "World"
+
+        # Verify cleanup is called on successful path
+        mock_cleanup.assert_called_once()
 
 
 def test_transcriber_file_not_found() -> None:
@@ -293,8 +297,12 @@ def test_transcriber_cuda_oom_error_during_inference(
             chunk_filepath=str(test_file), start_time=0.0, end_time=10.0, chunk_index=0
         )
 
-        with pytest.raises(RuntimeError, match="CUDA Out of Memory during transcription."):
-            transcriber.transcribe(chunk, [])
+        with patch.object(transcriber, "_cleanup_resources") as mock_cleanup:
+            with pytest.raises(RuntimeError, match="CUDA Out of Memory during transcription."):
+                transcriber.transcribe(chunk, [])
+
+            # Verify cleanup is called on CUDA OOM error path
+            mock_cleanup.assert_called_once()
 
 
 def test_transcriber_cleanup_resources_no_torch() -> None:
@@ -346,10 +354,14 @@ def test_transcriber_general_error_during_inference(
             chunk_filepath=str(test_file), start_time=0.0, end_time=10.0, chunk_index=0
         )
 
-        with pytest.raises(
-            RuntimeError, match="Faster whisper transcription failed: Some other error"
-        ):
-            transcriber.transcribe(chunk, [])
+        with patch.object(transcriber, "_cleanup_resources") as mock_cleanup:
+            with pytest.raises(
+                RuntimeError, match="Faster whisper transcription failed: Some other error"
+            ):
+                transcriber.transcribe(chunk, [])
+
+            # Verify cleanup is called on general error path
+            mock_cleanup.assert_called_once()
 
 
 @patch("pathlib.Path.is_file", return_value=True)

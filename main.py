@@ -93,9 +93,10 @@ def _process_single_chunk(
         msg = f"Unexpected failure in pipeline processing chunk {chunk.chunk_index}: {e}"
         raise RuntimeError(msg) from e
     else:
+        _cleanup_memory()
         return segments
     finally:
-        # Clear GPU memory after each heavy chunk to prevent OOM
+        # Clear GPU memory after each heavy chunk to prevent OOM even on error
         _cleanup_memory()
 
 
@@ -131,13 +132,18 @@ def run_pipeline(
 
         # 3. Process each chunk
 
-        for chunk in chunks:
-            all_segments.extend(
-                _process_single_chunk(
-                    chunk=chunk, detector=detector, transcriber=transcriber, diarizer=diarizer
+        try:
+            for chunk in chunks:
+                all_segments.extend(
+                    _process_single_chunk(
+                        chunk=chunk, detector=detector, transcriber=transcriber, diarizer=diarizer
+                    )
                 )
-            )
+        except Exception:
+            logger.exception("Pipeline aborted during chunk processing loop.")
+            raise
 
+        _cleanup_memory()
         return DiarizedTranscript(segments=all_segments)
     finally:
         # Guarantee final memory scrub before returning to main
@@ -163,6 +169,10 @@ def create_components(
         model_path=config.silero_vad_model_path,
     )
     transcriber: Transcriber = FasterWhisperTranscriber(config)
+
+    if not config.pyannote_auth_token or not config.pyannote_auth_token.startswith("hf_"):
+        msg = "Invalid Pyannote auth token. It must be a valid Hugging Face token starting with 'hf_'."
+        raise ValueError(msg)
 
     try:
         diarizer: Diarizer = PyannoteDiarizer(auth_token=config.pyannote_auth_token)
