@@ -1,4 +1,14 @@
+import typing
+from pathlib import Path
+
 from domain_models import AudioChunk, SpeechSegment, Transcriber, TranscriptionSegment
+
+try:
+    import torch
+    from faster_whisper import WhisperModel
+except ImportError as e:
+    msg = "Required library 'faster-whisper' or 'torch' is not installed."
+    raise ImportError(msg) from e
 
 
 class FasterWhisperTranscriber(Transcriber):
@@ -26,13 +36,6 @@ class FasterWhisperTranscriber(Transcriber):
     def _load_model(self) -> None:
         if self.model is None:
             try:
-                import torch
-                from faster_whisper import WhisperModel
-            except ImportError as e:
-                msg = "Required library 'faster-whisper' or 'torch' is not installed."
-                raise ImportError(msg) from e
-
-            try:
                 device = "cuda" if torch.cuda.is_available() else "cpu"
                 self.model = WhisperModel(
                     self.model_size, device=device, compute_type=self.compute_type
@@ -45,41 +48,27 @@ class FasterWhisperTranscriber(Transcriber):
         self, chunk: AudioChunk, speech_segments: list[SpeechSegment]
     ) -> list[TranscriptionSegment]:
         """Transcribes speech using faster-whisper logic, heavily customized for Japanese."""
-        self._load_model()
-
-        from pathlib import Path
-
         if not Path(chunk.chunk_filepath).exists():
             msg = f"Audio chunk file not found: {chunk.chunk_filepath}"
             raise FileNotFoundError(msg)
 
+        self._load_model()
+
         if self.model:
-            import inspect
-            import typing
-
-            # Validate parameters supported by the current faster-whisper version
-            sig = inspect.signature(self.model.transcribe)
-            params = {
-                "audio": chunk.chunk_filepath,
-                "language": self.language,
-                "vad_filter": self.vad_filter,
-                "condition_on_previous_text": self.condition_on_previous_text,
-                "temperature": self.temperature,
-            }
-
-            # Conditionally inject advanced Japanese-specific overrides if the current Whisper version supports them
-            if "compression_ratio_threshold" in sig.parameters:
-                params["compression_ratio_threshold"] = None
-            if "log_prob_threshold" in sig.parameters:
-                params["log_prob_threshold"] = None
-            if "no_speech_threshold" in sig.parameters:
-                params["no_speech_threshold"] = None
-
             try:
                 # Based on the ARCHITECTURE SPEC, we must override thresholds for Japanese
                 segments: typing.Iterable[typing.Any]
                 info: typing.Any
-                segments, info = self.model.transcribe(**params)
+                segments, info = self.model.transcribe(
+                    audio=chunk.chunk_filepath,
+                    language=self.language,
+                    vad_filter=self.vad_filter,
+                    condition_on_previous_text=self.condition_on_previous_text,
+                    temperature=self.temperature,
+                    compression_ratio_threshold=None,
+                    log_prob_threshold=None,
+                    no_speech_threshold=None,
+                )
 
                 result: list[TranscriptionSegment] = []
                 for segment in segments:

@@ -222,12 +222,10 @@ def cell_tests_c05_2(mo: object) -> tuple[object, ...]:
 
 
 @app.cell
-def cell_tests_c05_3() -> tuple[object, ...]:
+def cell_tests_c05_3(mo: Any) -> tuple[Any, ...]:
     import tempfile
     import wave
     from pathlib import Path
-    from unittest.mock import MagicMock as _MagicMock
-    from unittest.mock import patch as _patch
 
     from domain_models import AudioChunk as _AudioChunk
     from domain_models import SpeechSegment as _SpeechSegment
@@ -235,79 +233,71 @@ def cell_tests_c05_3() -> tuple[object, ...]:
         FasterWhisperTranscriber as _FasterWhisperTranscriber,
     )
 
-    # 1. Setup a dummy wav file
-    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf:
-        with wave.open(tf.name, "wb") as w:
-            w.setnchannels(1)
-            w.setsampwidth(2)
-            w.setframerate(16000)
-            # Create 1 second of synthetic silence
-            w.writeframes(b"\x00" * 16000 * 2)
-        chunk_01_name = tf.name
+    try:
+        import importlib.util
 
-    chunk_01 = _AudioChunk(
-        chunk_filepath=chunk_01_name, start_time=10.0, end_time=20.0, chunk_index=0
-    )
+        if not importlib.util.find_spec("faster_whisper") or not importlib.util.find_spec("torch"):
+            raise ImportError
+    except ImportError:
+        _output_3 = mo.md(
+            "**Cycle 05 UAT Skipped:** Required dependencies (faster-whisper, torch) are missing."
+        )
+    else:
+        # 1. Setup a dummy wav file
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf:
+            with wave.open(tf.name, "wb") as w:
+                w.setnchannels(1)
+                w.setsampwidth(2)
+                w.setframerate(16000)
+                # Create 1 second of synthetic silence
+                w.writeframes(b"\x00" * 16000 * 2)
+            chunk_01_name = tf.name
 
-    speech_segments_01 = [_SpeechSegment(start_time=10.0, end_time=15.0)]
+        chunk_01 = _AudioChunk(
+            chunk_filepath=chunk_01_name, start_time=10.0, end_time=20.0, chunk_index=0
+        )
 
-    # 2. Mock FasterWhisper model so we can run this without actually downloading models
-    # This is strictly for the UAT notebook happy path test without GPU
-    mock_model_instance = _MagicMock()
+        speech_segments_01 = [_SpeechSegment(start_time=10.0, end_time=15.0)]
 
-    # Mock transcript segments
-    mock_segment1 = _MagicMock()
-    mock_segment1.start = 0.5
-    mock_segment1.end = 2.0
-    mock_segment1.text = "Hello "
+        # We test the *actual functionality* but use "tiny" model for execution speed
+        transcriber_01 = _FasterWhisperTranscriber(
+            language="ja", model_size="tiny", compute_type="int8"
+        )
 
-    mock_model_instance.transcribe.return_value = ([mock_segment1], None)
+        try:
+            results_01 = transcriber_01.transcribe(chunk_01, speech_segments_01)
 
-    transcriber_01 = _FasterWhisperTranscriber(language="ja")
+            _output_msg = "**Cycle 05 Advanced Transcription Engine Passed!**\n\n"
+            for r in results_01:
+                _output_msg += f"- Segment: {r.start_time} - {r.end_time}: {r.text}\n"
+            _output_3 = mo.md(_output_msg)
+        except Exception as e:
+            _output_3 = mo.md(f"**Cycle 05 UAT Failed:** {e}")
+        finally:
+            Path(chunk_01_name).unlink()
 
-    # We must patch inspect.signature to return a signature matching what we need to test
-    mock_sig = _MagicMock()
-    mock_sig.parameters = {
-        "audio": _MagicMock(),
-        "language": _MagicMock(),
-        "vad_filter": _MagicMock(),
-        "condition_on_previous_text": _MagicMock(),
-        "temperature": _MagicMock(),
-        "compression_ratio_threshold": _MagicMock(),
-        "log_prob_threshold": _MagicMock(),
-        "no_speech_threshold": _MagicMock(),
-    }
-
-    with (
-        _patch("faster_whisper.WhisperModel", return_value=mock_model_instance),
-        _patch("inspect.signature", return_value=mock_sig),
-    ):
-        results_01 = transcriber_01.transcribe(chunk_01, speech_segments_01)
-
-    Path(chunk_01_name).unlink()
-
-    return chunk_01, speech_segments_01, transcriber_01, results_01
+    return (_output_3,)
 
 
 @app.cell
-def cell_tests_c05_4() -> tuple[object, ...]:
-    from unittest.mock import patch as _patch_err
-
+def cell_tests_c05_4(mo: Any) -> tuple[Any, ...]:
     from domain_models import AudioChunk as _AudioChunk_err
     from meetingnoter.processing.transcriber import (
         FasterWhisperTranscriber as _FasterWhisperTranscriber_err,
     )
 
-    transcriber_err = _FasterWhisperTranscriber_err(language="ja")
+    transcriber_err = _FasterWhisperTranscriber_err(language="ja", model_size="tiny")
 
     chunk_err = _AudioChunk_err(
         chunk_filepath="/path/to/nonexistent.wav", start_time=0.0, end_time=10.0, chunk_index=0
     )
 
-    import contextlib
-
-    with contextlib.suppress(FileNotFoundError), _patch_err.object(transcriber_err, "_load_model"):
-        # Avoid loading the real model if we can't find the file
+    try:
         transcriber_err.transcribe(chunk_err, [])
+        _output_4 = mo.md("**Error Handling Failed:** Exception was not triggered!")
+    except FileNotFoundError as e:
+        _output_4 = mo.md(
+            f"**Scenario ID: UAT-C05-02 - Robust Error Handling - SUCCESS** Caught expected error: `{e}`"
+        )
 
-    return chunk_err, transcriber_err
+    return (_output_4,)

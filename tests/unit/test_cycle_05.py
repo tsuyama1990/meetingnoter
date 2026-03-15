@@ -29,7 +29,7 @@ def test_transcriber_initialization(mock_whisper_model: MagicMock) -> None:
     assert transcriber.condition_on_previous_text is False
 
 
-@patch("faster_whisper.WhisperModel")
+@patch("meetingnoter.processing.transcriber.WhisperModel")
 @patch("pathlib.Path.exists", return_value=True)
 def test_transcriber_load_and_transcribe(
     mock_exists: MagicMock, mock_whisper_model: MagicMock, tmp_path: Path
@@ -50,53 +50,37 @@ def test_transcriber_load_and_transcribe(
 
     mock_model_instance.transcribe.return_value = ([mock_segment1, mock_segment2], None)
 
-    # We must patch inspect.signature to return a signature matching what we need to test
-    # (specifically the presence of compression_ratio_threshold)
+    transcriber = FasterWhisperTranscriber(language="ja")
 
-    mock_sig = MagicMock()
-    mock_sig.parameters = {
-        "audio": MagicMock(),
-        "language": MagicMock(),
-        "vad_filter": MagicMock(),
-        "condition_on_previous_text": MagicMock(),
-        "temperature": MagicMock(),
-        "compression_ratio_threshold": MagicMock(),
-        "log_prob_threshold": MagicMock(),
-        "no_speech_threshold": MagicMock(),
-    }
+    chunk = AudioChunk(
+        chunk_filepath=str(tmp_path / "test.wav"), start_time=10.0, end_time=20.0, chunk_index=0
+    )
 
-    with patch("inspect.signature", return_value=mock_sig):
-        transcriber = FasterWhisperTranscriber(language="ja")
+    speech_segments = [SpeechSegment(start_time=10.0, end_time=15.0)]
 
-        chunk = AudioChunk(
-            chunk_filepath=str(tmp_path / "test.wav"), start_time=10.0, end_time=20.0, chunk_index=0
-        )
+    results = transcriber.transcribe(chunk, speech_segments)
 
-        speech_segments = [SpeechSegment(start_time=10.0, end_time=15.0)]
+    # Check that model was loaded
+    assert transcriber.model is not None
+    mock_whisper_model.assert_called_once()
 
-        results = transcriber.transcribe(chunk, speech_segments)
+    # Check that transcribe was called with correct parameters
+    call_kwargs = mock_model_instance.transcribe.call_args.kwargs
+    assert call_kwargs["language"] == "ja"
+    assert call_kwargs["compression_ratio_threshold"] is None
+    assert call_kwargs["log_prob_threshold"] is None
+    assert call_kwargs["no_speech_threshold"] is None
+    assert call_kwargs["condition_on_previous_text"] is False
 
-        # Check that model was loaded
-        assert transcriber.model is not None
-        mock_whisper_model.assert_called_once()
+    # Check results mapping to global timestamps
+    assert len(results) == 2
+    assert results[0].start_time == 10.5
+    assert results[0].end_time == 12.0
+    assert results[0].text == "Hello"
 
-        # Check that transcribe was called with correct parameters
-        call_kwargs = mock_model_instance.transcribe.call_args.kwargs
-        assert call_kwargs["language"] == "ja"
-        assert call_kwargs["compression_ratio_threshold"] is None
-        assert call_kwargs["log_prob_threshold"] is None
-        assert call_kwargs["no_speech_threshold"] is None
-        assert call_kwargs["condition_on_previous_text"] is False
-
-        # Check results mapping to global timestamps
-        assert len(results) == 2
-        assert results[0].start_time == 10.5
-        assert results[0].end_time == 12.0
-        assert results[0].text == "Hello"
-
-        assert results[1].start_time == 12.5
-        assert results[1].end_time == 14.0
-        assert results[1].text == "World"
+    assert results[1].start_time == 12.5
+    assert results[1].end_time == 14.0
+    assert results[1].text == "World"
 
 
 def test_transcriber_file_not_found() -> None:
@@ -106,15 +90,11 @@ def test_transcriber_file_not_found() -> None:
         chunk_filepath="/path/to/nonexistent.wav", start_time=0.0, end_time=10.0, chunk_index=0
     )
 
-    with (
-        pytest.raises(FileNotFoundError, match="Audio chunk file not found"),
-        patch.object(transcriber, "_load_model"),
-    ):
-        # load model needs to be patched out or we'll get an error trying to load it
+    with pytest.raises(FileNotFoundError, match="Audio chunk file not found"):
         transcriber.transcribe(chunk, [])
 
 
-@patch("faster_whisper.WhisperModel")
+@patch("meetingnoter.processing.transcriber.WhisperModel")
 @patch("pathlib.Path.exists", return_value=True)
 def test_transcriber_inference_error(
     mock_exists: MagicMock, mock_whisper_model: MagicMock, tmp_path: Path
@@ -123,23 +103,17 @@ def test_transcriber_inference_error(
     mock_model_instance.transcribe.side_effect = Exception("Inference failed")
     mock_whisper_model.return_value = mock_model_instance
 
-    mock_sig = MagicMock()
-    mock_sig.parameters = {"audio": MagicMock()}
+    transcriber = FasterWhisperTranscriber()
 
-    with patch("inspect.signature", return_value=mock_sig):
-        transcriber = FasterWhisperTranscriber()
+    chunk = AudioChunk(
+        chunk_filepath=str(tmp_path / "test.wav"), start_time=0.0, end_time=10.0, chunk_index=0
+    )
 
-        chunk = AudioChunk(
-            chunk_filepath=str(tmp_path / "test.wav"), start_time=0.0, end_time=10.0, chunk_index=0
-        )
-
-        with pytest.raises(
-            RuntimeError, match="Faster whisper transcription failed: Inference failed"
-        ):
-            transcriber.transcribe(chunk, [])
+    with pytest.raises(RuntimeError, match="Faster whisper transcription failed: Inference failed"):
+        transcriber.transcribe(chunk, [])
 
 
-@patch("faster_whisper.WhisperModel")
+@patch("meetingnoter.processing.transcriber.WhisperModel")
 @patch("pathlib.Path.exists", return_value=True)
 def test_transcriber_load_model_not_found(
     mock_exists: MagicMock, mock_whisper_model: MagicMock, tmp_path: Path
@@ -156,13 +130,12 @@ def test_transcriber_load_model_not_found(
         transcriber.transcribe(chunk, [])
 
 
-@patch("faster_whisper.WhisperModel")
+@patch("meetingnoter.processing.transcriber.WhisperModel")
 @patch("pathlib.Path.exists", return_value=True)
 def test_transcriber_model_none_after_load(
     mock_exists: MagicMock, mock_whisper_model: MagicMock, tmp_path: Path
 ) -> None:
     # Simulate a scenario where model is still None after _load_model
-    # This might happen if the try/except block caught something but didn't raise, or just to cover the `if self.model:` branch
     transcriber = FasterWhisperTranscriber()
 
     chunk = AudioChunk(
@@ -177,48 +150,45 @@ def test_transcriber_model_none_after_load(
         transcriber.transcribe(chunk, [])
 
 
-def test_transcriber_import_error() -> None:
-    # Test handling of missing faster-whisper dependency
-    transcriber = FasterWhisperTranscriber()
-
+@patch("faster_whisper.WhisperModel")
+def test_transcriber_import_error(mock_whisper_model: MagicMock) -> None:
+    import importlib
     import sys
 
+    import meetingnoter.processing.transcriber
+
     # Hide the faster_whisper module to trigger ImportError
-    with (
-        patch.dict(sys.modules, {"faster_whisper": None}),
-        pytest.raises(
-            ImportError, match="Required library 'faster-whisper' or 'torch' is not installed."
-        ),
+    with patch.dict(sys.modules, {"faster_whisper": None}), pytest.raises(
+        ImportError, match="Required library 'faster-whisper' or 'torch' is not installed."
     ):
-        transcriber._load_model()
+        # We need to reload the module to trigger the ImportError at the top of the file
+        importlib.reload(meetingnoter.processing.transcriber)
 
 
-@patch("faster_whisper.WhisperModel")
+@patch("meetingnoter.processing.transcriber.WhisperModel")
 @patch("pathlib.Path.exists", return_value=True)
-@patch("torch.cuda.is_available", return_value=True)
+@patch("meetingnoter.processing.transcriber.torch.cuda.is_available", return_value=True)
+@patch("meetingnoter.processing.transcriber.torch.cuda.empty_cache")
 def test_transcriber_garbage_collection(
-    mock_cuda: MagicMock, mock_exists: MagicMock, mock_whisper_model: MagicMock, tmp_path: Path
+    mock_empty_cache: MagicMock,
+    mock_cuda: MagicMock,
+    mock_exists: MagicMock,
+    mock_whisper_model: MagicMock,
+    tmp_path: Path,
 ) -> None:
     mock_model_instance = MagicMock()
     mock_whisper_model.return_value = mock_model_instance
     mock_model_instance.transcribe.return_value = ([], None)
 
-    mock_sig = MagicMock()
-    mock_sig.parameters = {"audio": MagicMock()}
+    transcriber = FasterWhisperTranscriber()
 
-    with (
-        patch("inspect.signature", return_value=mock_sig),
-        patch("torch.cuda.empty_cache") as mock_empty_cache,
-    ):
-        transcriber = FasterWhisperTranscriber()
+    chunk = AudioChunk(
+        chunk_filepath=str(tmp_path / "test.wav"),
+        start_time=0.0,
+        end_time=10.0,
+        chunk_index=0,
+    )
 
-        chunk = AudioChunk(
-            chunk_filepath=str(tmp_path / "test.wav"),
-            start_time=0.0,
-            end_time=10.0,
-            chunk_index=0,
-        )
+    transcriber.transcribe(chunk, [])
 
-        transcriber.transcribe(chunk, [])
-
-        mock_empty_cache.assert_called_once()
+    mock_empty_cache.assert_called_once()
