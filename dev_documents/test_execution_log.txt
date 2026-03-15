@@ -4,12 +4,12 @@ rootdir: /app
 configfile: pyproject.toml
 testpaths: tests
 plugins: cov-7.0.0, anyio-4.12.1
-collected 56 items
+collected 59 items
 
-tests/e2e/test_integration_01.py ..s                                     [  5%]
+tests/e2e/test_integration_01.py ..s.                                    [  6%]
 tests/unit/test_chunker.py ......                                        [ 16%]
-tests/unit/test_cycle_05.py ......................                       [ 55%]
-tests/unit/test_domain_models.py ...................                     [ 89%]
+tests/unit/test_cycle_05.py ......................                       [ 54%]
+tests/unit/test_domain_models.py .....................                   [ 89%]
 tests/unit/test_vad.py ......                                            [100%]
 
 ================================ tests coverage ================================
@@ -17,22 +17,31 @@ _______________ coverage: platform linux, python 3.12.13-final-0 _______________
 
 Name                                         Stmts   Miss  Cover   Missing
 --------------------------------------------------------------------------
-main.py                                        101     41    59%   8-9, 32, 99, 152-213, 220
 src/domain_models/__init__.py                    5      0   100%
 src/domain_models/audio.py                      27      0   100%
-src/domain_models/config.py                     67     16    76%   10, 49-66
-src/domain_models/interfaces.py                 13      0   100%
+src/domain_models/config.py                     68     16    76%   10, 49-66
+src/domain_models/interfaces.py                 15      0   100%
 src/domain_models/transcription.py              38      0   100%
-src/meetingnoter/__init__.py                     0      0   100%
+src/meetingnoter/__init__.py                     2      0   100%
 src/meetingnoter/ingestion/drive_client.py      46      3    93%   53, 59, 65
+src/meetingnoter/processing/aggregator.py       18      0   100%
 src/meetingnoter/processing/chunker.py          58      5    91%   25-26, 41, 75-76
 src/meetingnoter/processing/transcriber.py      66      0   100%
 src/meetingnoter/processing/vad.py             184     58    68%   14-16, 49-50, 68-69, 86-87, 102, 108-109, 125-132, 142-148, 172-173, 189, 196-197, 207-216, 223, 227-229, 232-233, 236-237, 240-241, 244-245, 265-266, 269-273, 279, 283-284
-tests/e2e/test_integration_01.py                78     20    74%   91, 114, 147-175
-tests/unit/test_chunker.py                      95      0   100%
-tests/unit/test_cycle_05.py                    286      0   100%
-tests/unit/test_domain_models.py               122      0   100%
-tests/unit/test_vad.py                          81      0   100%
 --------------------------------------------------------------------------
-TOTAL                                         1267    143    89%
-======================== 55 passed, 1 skipped in 8.56s =========================
+TOTAL                                          527     82    84%
+======================== 58 passed, 1 skipped in 11.77s ========================
+/app/.venv/lib/python3.12/site-packages/coverage/inorout.py:561: CoverageWarning: Module meetingnoter.processing.diarizer was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.13.4/messages.html#warning-module-not-imported
+  self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")
+/app/.venv/lib/python3.12/site-packages/coverage/inorout.py:561: CoverageWarning: Module src/meetingnoter/processing/vad was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.13.4/messages.html#warning-module-not-imported
+  self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")
+/app/.venv/lib/python3.12/site-packages/coverage/inorout.py:561: CoverageWarning: Module src/meetingnoter/processing/transcriber was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.13.4/messages.html#warning-module-not-imported
+  self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")
+/app/.venv/lib/python3.12/site-packages/coverage/inorout.py:561: CoverageWarning: Module src/meetingnoter/processing/chunker was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.13.4/messages.html#warning-module-not-imported
+  self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")
+/app/.venv/lib/python3.12/site-packages/coverage/inorout.py:561: CoverageWarning: Module src/meetingnoter/processing/diarizer was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.13.4/messages.html#warning-module-not-imported
+  self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")
+/app/.venv/lib/python3.12/site-packages/coverage/inorout.py:561: CoverageWarning: Module src/meetingnoter/processing/aggregator was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.13.4/messages.html#warning-module-not-imported
+  self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")
+/app/.venv/lib/python3.12/site-packages/coverage/inorout.py:561: CoverageWarning: Module src/meetingnoter/ingestion/drive_client was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.13.4/messages.html#warning-module-not-imported
+  self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")

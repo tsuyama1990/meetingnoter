@@ -87,9 +87,9 @@ class FasterWhisperTranscriber(Transcriber):
 
                 result: list[TranscriptionSegment] = []
                 for segment in segments:
-                    # Convert local chunk timestamps to global timestamps
-                    start_sec: float = chunk.start_time + float(segment.start)
-                    end_sec: float = chunk.start_time + float(segment.end)
+                    # Based on Spec: output localized timestamps
+                    start_sec: float = float(segment.start)
+                    end_sec: float = float(segment.end)
 
                     if start_sec < end_sec:
                         result.append(

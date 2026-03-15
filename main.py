@@ -11,6 +11,7 @@ except ImportError:
 import importlib
 
 from domain_models import (
+    Aggregator,
     AudioChunk,
     AudioSource,
     AudioSplitter,
@@ -37,6 +38,7 @@ def _process_single_chunk(
     detector: SpeechDetector,
     transcriber: Transcriber,
     diarizer: Diarizer,
+    aggregator: Aggregator,
 ) -> list[DiarizedSegment]:
     """Processes a single chunk to manage memory strictly."""
     from domain_models import SpeakerLabel, SpeechSegment, TranscriptionSegment
@@ -52,16 +54,7 @@ def _process_single_chunk(
         speaker_labels: list[SpeakerLabel] = diarizer.diarize(chunk)
 
         # Aggregate results
-        segments: list[DiarizedSegment] = []
-        for t, s in zip(transcriptions, speaker_labels, strict=False):
-            segments.append(
-                DiarizedSegment(
-                    start_time=t.start_time,
-                    end_time=t.end_time,
-                    text=t.text,
-                    speaker_id=s.speaker_id,
-                )
-            )
+        segments: list[DiarizedSegment] = aggregator.merge(chunk, transcriptions, speaker_labels)
     except RuntimeError as e:
         if "CUDA out of memory" in str(e):
             logger.exception(
@@ -105,6 +98,7 @@ def run_pipeline(
     detector: SpeechDetector,
     transcriber: Transcriber,
     diarizer: Diarizer,
+    aggregator: Aggregator,
     file_id: str,
 ) -> DiarizedTranscript:
     """Orchestrates the entire voice analysis pipeline."""
@@ -126,7 +120,7 @@ def run_pipeline(
             for chunk in chunks:
                 all_segments.extend(
                     _process_single_chunk(
-                        chunk=chunk, detector=detector, transcriber=transcriber, diarizer=diarizer
+                        chunk=chunk, detector=detector, transcriber=transcriber, diarizer=diarizer, aggregator=aggregator
                     )
                 )
         except Exception:
@@ -167,6 +161,7 @@ def main() -> None:
         vad_module = importlib.import_module(config.vad_module_path)
         transcriber_module = importlib.import_module(config.transcriber_module_path)
         diarizer_module = importlib.import_module(config.diarizer_module_path)
+        aggregator_module = importlib.import_module(config.aggregator_module_path)
 
         storage: StorageClient = drive_client_module.GoogleDriveClient(config=config)
         splitter: AudioSplitter = chunker_module.FFmpegChunker(
@@ -179,6 +174,7 @@ def main() -> None:
             model_path=config.silero_vad_model_path,
         )
         transcriber: Transcriber = transcriber_module.FasterWhisperTranscriber(config)
+        aggregator: Aggregator = aggregator_module.TranscriptMerger()
 
         if not config.pyannote_auth_token or not config.pyannote_auth_token.startswith("hf_"):
             msg = "Invalid Pyannote auth token. It must be a valid Hugging Face token starting with 'hf_'."
@@ -204,6 +200,7 @@ def main() -> None:
             detector=detector,
             transcriber=transcriber,
             diarizer=diarizer,
+            aggregator=aggregator,
             file_id=config.file_id,
         )
     except RuntimeError:

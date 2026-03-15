@@ -59,9 +59,8 @@ class PyannoteDiarizer(Diarizer):
 
                 labels: list[SpeakerLabel] = []
                 for turn, _, speaker in diarization.itertracks(yield_label=True):
-                    # Turn is a pyannote.core.Segment object
-                    start_sec: float = chunk.start_time + turn.start
-                    end_sec: float = chunk.start_time + turn.end
+                    start_sec: float = float(turn.start)
+                    end_sec: float = float(turn.end)
 
                     if start_sec < end_sec:
                         labels.append(

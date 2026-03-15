@@ -91,7 +91,7 @@ def test_pipeline_integration_failure() -> None:
         sys.path.insert(0, root_dir)
 
     from main import run_pipeline
-
+    from meetingnoter import TranscriptMerger
     with pytest.raises(RuntimeError, match="Network Error"):
         run_pipeline(
             storage=storage,
@@ -99,6 +99,7 @@ def test_pipeline_integration_failure() -> None:
             detector=SyntheticDatasetSpeechDetector(),
             transcriber=SyntheticDatasetTranscriber(),
             diarizer=SyntheticDatasetDiarizer(),
+            aggregator=TranscriptMerger(),
             file_id="test_id",
         )
 
@@ -119,8 +120,10 @@ def test_pipeline_integration() -> None:
     splitter: AudioSplitter = SyntheticDatasetAudioSplitter()
     detector: SpeechDetector = SyntheticDatasetSpeechDetector()
 
+    from meetingnoter import TranscriptMerger
     transcriber: Transcriber = SyntheticDatasetTranscriber()
     diarizer: Diarizer = SyntheticDatasetDiarizer()
+    aggregator: TranscriptMerger = TranscriptMerger()
 
     transcript: DiarizedTranscript = run_pipeline(
         storage=storage,
@@ -128,6 +131,7 @@ def test_pipeline_integration() -> None:
         detector=detector,
         transcriber=transcriber,
         diarizer=diarizer,
+        aggregator=aggregator,
         file_id="test_id",
     )
 
@@ -173,3 +177,38 @@ def test_ffmpeg_chunker_integration() -> None:
         assert Path(chunks[0].chunk_filepath).stat().st_size > 0
     finally:
         Path(tf.name).unlink(missing_ok=True)
+
+def test_merger_integration() -> None:
+    from domain_models import AudioChunk, SpeakerLabel, TranscriptionSegment
+    from meetingnoter import TranscriptMerger
+
+    merger = TranscriptMerger()
+    chunk = AudioChunk(
+        chunk_filepath="dummy_e2e.wav",
+        start_time=600.0,
+        end_time=1200.0,
+        chunk_index=1,
+    )
+
+    transcriptions = [
+        TranscriptionSegment(start_time=10.0, end_time=15.0, text="First sentence"),
+        TranscriptionSegment(start_time=20.0, end_time=25.0, text="Second sentence"),
+    ]
+
+    labels = [
+        SpeakerLabel(start_time=10.0, end_time=15.0, speaker_id="SPEAKER_A"),
+        SpeakerLabel(start_time=20.0, end_time=25.0, speaker_id="SPEAKER_B"),
+    ]
+
+    merged = merger.merge(chunk, transcriptions, labels)
+
+    assert len(merged) == 2
+    assert merged[0].speaker_id == "SPEAKER_A"
+    assert merged[0].start_time == 610.0
+    assert merged[0].end_time == 615.0
+    assert merged[0].text == "First sentence"
+
+    assert merged[1].speaker_id == "SPEAKER_B"
+    assert merged[1].start_time == 620.0
+    assert merged[1].end_time == 625.0
+    assert merged[1].text == "Second sentence"

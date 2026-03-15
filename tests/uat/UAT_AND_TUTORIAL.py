@@ -450,12 +450,14 @@ def cell_tests_c07_2(mo: Any) -> tuple[Any, ...]:
             ):
                 # Let's just run it! Real components with intercepted downloads.
                 try:
+                    from meetingnoter import TranscriptMerger
                     _c07_transcript = _c07_run_pipeline(
                         storage=_c07_storage,
                         splitter=_c07_splitter,
                         detector=_c07_detector,
                         transcriber=_c07_transcriber,
                         diarizer=_c07_diarizer,
+                        aggregator=TranscriptMerger(),
                         file_id="dummy_file_id",
                     )
                     return mo.md(
@@ -532,12 +534,14 @@ def cell_tests_c07_3(mo: Any) -> tuple[Any, ...]:
             )
             _c07_err_storage.http_client = _mock_http_err
 
+            from meetingnoter import TranscriptMerger
             _c07_err_run_pipeline(
                 storage=_c07_err_storage,
                 splitter=_c07_err_splitter,
                 detector=_c07_err_detector,
                 transcriber=_c07_err_transcriber,
                 diarizer=_c07_err_diarizer,
+                aggregator=TranscriptMerger(),
                 file_id="bad_file_id",
             )
             return mo.md(
@@ -564,3 +568,84 @@ def cell_tests_c07_3(mo: Any) -> tuple[Any, ...]:
 
     _output_c07_2 = mo.vstack([test_c07_error_handling()])
     return (_output_c07_2,)
+
+@app.cell
+def cell_tests_c08_1(mo: Any) -> tuple[Any, ...]:
+    return (
+        mo.md(
+            """
+            # CYCLE08 User Acceptance Testing (UAT)
+
+            This section validates Data Aggregation and UAT Finalization components via Marimo.
+            We verify 'UAT-C08-01 - Primary Path' execution and 'UAT-C08-02 - Robust Error Handling'.
+            """
+        ),
+    )
+
+
+@app.cell
+def cell_tests_c08_2(mo: Any) -> tuple[Any, ...]:
+    def test_c08_primary_path() -> Any:
+        try:
+            from domain_models import AudioChunk, SpeakerLabel, TranscriptionSegment
+            from meetingnoter import TranscriptMerger
+
+            chunk = AudioChunk(
+                chunk_filepath="sample_chunk_1.wav", start_time=1200.0, end_time=2400.0, chunk_index=1
+            )
+            transcriptions = [
+                TranscriptionSegment(start_time=10.0, end_time=15.0, text="Hello offset")
+            ]
+            labels = [
+                SpeakerLabel(start_time=10.0, end_time=15.0, speaker_id="SPEAKER_01")
+            ]
+
+            merger = TranscriptMerger()
+            result = merger.merge(chunk, transcriptions, labels)
+
+            assert len(result) == 1
+            assert result[0].start_time == 1210.0
+            assert result[0].end_time == 1215.0
+
+            return mo.md(
+                f"**Scenario ID: UAT-C08-01 - Primary Path - SUCCESS**\\n\\nAggregated transcript: {result[0].start_time}-{result[0].end_time}: {result[0].speaker_id} says '{result[0].text}'."
+            )
+
+        except Exception as e:
+            return mo.md(f"**Scenario ID: UAT-C08-01 - Primary Path - FAILED**\\n\\nError: {e}")
+
+    _output_c08_1 = mo.vstack([test_c08_primary_path()])
+    return (_output_c08_1,)
+
+
+@app.cell
+def cell_tests_c08_3(mo: Any) -> tuple[Any, ...]:
+    def test_c08_error_handling() -> Any:
+        try:
+            from domain_models import AudioChunk, SpeakerLabel, TranscriptionSegment
+            from meetingnoter import TranscriptMerger
+
+            chunk = AudioChunk(
+                chunk_filepath="sample_chunk_1.wav", start_time=1200.0, end_time=2400.0, chunk_index=1
+            )
+            transcriptions = [
+                TranscriptionSegment(start_time=10.0, end_time=15.0, text="Valid")
+            ]
+            labels = [
+                SpeakerLabel(start_time=20.0, end_time=10.0, speaker_id="SPEAKER_01") # Invalid time ordering
+            ]
+
+            merger = TranscriptMerger()
+            merger.merge(chunk, transcriptions, labels)
+
+            return mo.md("**Scenario ID: UAT-C08-02 - Robust Error Handling - FAILED**\\n\\nException was not triggered for malformed label!")
+        except Exception as e:
+            from pydantic import ValidationError
+            if isinstance(e, ValidationError):
+                return mo.md(
+                    f"**Scenario ID: UAT-C08-02 - Robust Error Handling - SUCCESS**\\n\\nCaught expected validation error: `{e}`"
+                )
+            return mo.md(f"**Scenario ID: UAT-C08-02 - Robust Error Handling - FAILED**\\n\\nUnexpected error: {e}")
+
+    _output_c08_2 = mo.vstack([test_c08_error_handling()])
+    return (_output_c08_2,)

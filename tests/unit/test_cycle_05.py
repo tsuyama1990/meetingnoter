@@ -15,6 +15,7 @@ from domain_models import (
     Transcriber,
 )
 from main import _process_single_chunk, run_pipeline
+from meetingnoter import TranscriptMerger
 from meetingnoter.processing.transcriber import FasterWhisperTranscriber
 
 
@@ -85,14 +86,14 @@ def test_transcriber_load_and_transcribe(
         assert call_kwargs["no_speech_threshold"] is None
         assert call_kwargs["condition_on_previous_text"] is False
 
-        # Check results mapping to global timestamps
+        # Check results mapping to localized timestamps based on Spec
         assert len(results) == 2
-        assert results[0].start_time == 10.5
-        assert results[0].end_time == 12.0
+        assert results[0].start_time == 0.5
+        assert results[0].end_time == 2.0
         assert results[0].text == "Hello"
 
-        assert results[1].start_time == 12.5
-        assert results[1].end_time == 14.0
+        assert results[1].start_time == 2.5
+        assert results[1].end_time == 4.0
         assert results[1].text == "World"
 
         # Verify cleanup is called on successful path
@@ -456,7 +457,7 @@ def test_pipeline_orchestration_cleanup_on_download_fail(tmp_path: Path) -> None
             splitter=splitter,
             detector=detector,
             transcriber=transcriber,
-            diarizer=diarizer,
+            diarizer=diarizer, aggregator=TranscriptMerger(),
             file_id="test_id",
         )
     # The source file was never created, so we don't assert deletion,
@@ -484,7 +485,7 @@ def test_pipeline_orchestration_cleanup_on_chunking_fail(tmp_path: Path) -> None
             splitter=splitter,
             detector=detector,
             transcriber=transcriber,
-            diarizer=diarizer,
+            diarizer=diarizer, aggregator=TranscriptMerger(),
             file_id="test_id",
         )
     # Ensure source was cleaned up in the finally block
@@ -525,7 +526,7 @@ def test_pipeline_orchestration_cleanup_on_processing_fail(tmp_path: Path) -> No
             splitter=splitter,
             detector=detector,
             transcriber=transcriber,
-            diarizer=diarizer,
+            diarizer=diarizer, aggregator=TranscriptMerger(),
             file_id="test_id",
         )
     # Ensure all temp files were cleaned up
@@ -544,7 +545,7 @@ def test_process_single_chunk_network_error(tmp_path: Path) -> None:
     diarizer = MagicMock(spec=Diarizer)
 
     with pytest.raises(RuntimeError, match="API down"):
-        _process_single_chunk(chunk, detector, transcriber, diarizer)
+        _process_single_chunk(chunk, detector, transcriber, diarizer, TranscriptMerger())
 
 
 def test_process_single_chunk_validation_error(tmp_path: Path) -> None:
@@ -557,7 +558,7 @@ def test_process_single_chunk_validation_error(tmp_path: Path) -> None:
     diarizer = MagicMock(spec=Diarizer)
 
     with pytest.raises(ValueError, match="Invalid inputs"):
-        _process_single_chunk(chunk, detector, transcriber, diarizer)
+        _process_single_chunk(chunk, detector, transcriber, diarizer, TranscriptMerger())
 
 
 def test_process_single_chunk_unexpected_error(tmp_path: Path) -> None:
@@ -573,4 +574,4 @@ def test_process_single_chunk_unexpected_error(tmp_path: Path) -> None:
         RuntimeError,
         match="Unexpected failure in pipeline processing chunk 0: Something totally weird",
     ):
-        _process_single_chunk(chunk, detector, transcriber, diarizer)
+        _process_single_chunk(chunk, detector, transcriber, diarizer, TranscriptMerger())

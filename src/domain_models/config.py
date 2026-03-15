@@ -119,6 +119,10 @@ class PipelineConfig(BaseSettings):
     )
 
     # Architectural Module Injection Paths
+    aggregator_module_path: str = Field(
+        default="meetingnoter.processing.aggregator",
+        description="Path to Aggregator implementation.",
+    )
     drive_client_module_path: str = Field(
         default="meetingnoter.ingestion.drive_client",
         description="Path to Drive Client implementation.",
