@@ -340,3 +340,181 @@ def cell_tests_c05_4(mo: Any) -> tuple[Any, ...]:
         )
 
     return (_output_4,)
+
+
+@app.cell
+def cell_tests_c07_1(mo: Any) -> tuple[Any, ...]:
+    return (
+        mo.md(
+            """
+            # CYCLE07 User Acceptance Testing (UAT)
+
+            This section validates the Pipeline Orchestration This section validates the Pipeline Orchestration & Memory Management components.  Memory Management components.
+            We verify the 'Primary Path' execution and 'Robust Error Handling'.
+            """
+        ),
+    )
+
+
+@app.cell
+def cell_tests_c07_2(mo: Any) -> tuple[Any, ...]:
+    import tempfile
+    import wave
+
+    from domain_models import (
+        AudioChunk as _C07AudioChunk,
+    )
+    from domain_models import (
+        AudioSource as _C07AudioSource,
+    )
+    from domain_models import (
+        AudioSplitter as _C07AudioSplitter,
+    )
+    from domain_models import (
+        DiarizedTranscript as _C07DiarizedTranscript,
+    )
+    from domain_models import (
+        Diarizer as _C07Diarizer,
+    )
+    from domain_models import (
+        SpeakerLabel as _C07SpeakerLabel,
+    )
+    from domain_models import (
+        SpeechDetector as _C07SpeechDetector,
+    )
+    from domain_models import (
+        SpeechSegment as _C07SpeechSegment,
+    )
+    from domain_models import (
+        StorageClient as _C07StorageClient,
+    )
+    from domain_models import (
+        Transcriber as _C07Transcriber,
+    )
+    from domain_models import (
+        TranscriptionSegment as _C07TranscriptionSegment,
+    )
+    from main import run_pipeline as _c07_run_pipeline
+
+    class _MockStorageClient(_C07StorageClient):
+        def download(self, file_id: str) -> _C07AudioSource:
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
+                with wave.open(f.name, "wb") as w:
+                    w.setnchannels(1)
+                    w.setsampwidth(2)
+                    w.setframerate(16000)
+                    w.writeframes(b"\x00" * 16000 * 2)
+                return _C07AudioSource(filepath=f.name, duration_seconds=1.0)
+
+    class _MockAudioSplitter(_C07AudioSplitter):
+        def split(self, source: _C07AudioSource) -> list[_C07AudioChunk]:
+            return [
+                _C07AudioChunk(
+                    chunk_filepath=source.filepath, start_time=0.0, end_time=1.0, chunk_index=0
+                )
+            ]
+
+    class _MockSpeechDetector(_C07SpeechDetector):
+        def detect_speech(self, chunk: _C07AudioChunk) -> list[_C07SpeechSegment]:
+            return [_C07SpeechSegment(start_time=0.0, end_time=1.0)]
+
+    class _MockTranscriber(_C07Transcriber):
+        def transcribe(
+            self, chunk: _C07AudioChunk, speech_segments: list[_C07SpeechSegment]
+        ) -> list[_C07TranscriptionSegment]:
+            return [
+                _C07TranscriptionSegment(start_time=0.0, end_time=1.0, text="Mock transcribed text")
+            ]
+
+    class _MockDiarizer(_C07Diarizer):
+        def diarize(self, chunk: _C07AudioChunk) -> list[_C07SpeakerLabel]:
+            return [_C07SpeakerLabel(start_time=0.0, end_time=1.0, speaker_id="SPEAKER_00")]
+
+    try:
+        _c07_storage = _MockStorageClient()
+        _c07_splitter = _MockAudioSplitter()
+        _c07_detector = _MockSpeechDetector()
+        _c07_transcriber = _MockTranscriber()
+        _c07_diarizer = _MockDiarizer()
+
+        _c07_transcript: _C07DiarizedTranscript = _c07_run_pipeline(
+            storage=_c07_storage,
+            splitter=_c07_splitter,
+            detector=_c07_detector,
+            transcriber=_c07_transcriber,
+            diarizer=_c07_diarizer,
+            file_id="dummy_file_id",
+        )
+        _output_c07_1 = mo.md(
+            f"**Scenario ID: UAT-C07-01 - Primary Path - SUCCESS**\\n\\nGenerated {len(_c07_transcript.segments)} segments.\\n\\nFirst Segment: `{_c07_transcript.segments[0].speaker_id}: {_c07_transcript.segments[0].text}`"
+        )
+    except Exception as e:
+        _output_c07_1 = mo.md(
+            f"**Scenario ID: UAT-C07-01 - Primary Path - FAILED**\\n\\nError: {e}"
+        )
+
+    return (_output_c07_1,)
+
+
+@app.cell
+def cell_tests_c07_3(mo: Any) -> tuple[Any, ...]:
+    from domain_models import (
+        AudioSource as _C07ErrAudioSource,
+    )
+    from domain_models import (
+        AudioSplitter as _C07ErrAudioSplitter,
+    )
+    from domain_models import (
+        Diarizer as _C07ErrDiarizer,
+    )
+    from domain_models import (
+        SpeechDetector as _C07ErrSpeechDetector,
+    )
+    from domain_models import (
+        StorageClient as _C07ErrStorageClient,
+    )
+    from domain_models import (
+        Transcriber as _C07ErrTranscriber,
+    )
+    from main import run_pipeline as _c07_err_run_pipeline
+
+    class _MockFailingStorageClient(_C07ErrStorageClient):
+        def download(self, file_id: str) -> _C07ErrAudioSource:
+            msg = "Simulated API validation error for bad file_id."
+            raise ValueError(msg)
+
+    try:
+        _c07_err_storage = _MockFailingStorageClient()
+        # Mocking the rest, but they won't be called because storage fails first
+        _c07_err_splitter = type(
+            "MockSplitter", (_C07ErrAudioSplitter,), {"split": lambda self, src: []}
+        )()
+        _c07_err_detector = type(
+            "MockDetector", (_C07ErrSpeechDetector,), {"detect_speech": lambda self, chunk: []}
+        )()
+        _c07_err_transcriber = type(
+            "MockTranscriber",
+            (_C07ErrTranscriber,),
+            {"transcribe": lambda self, chunk, segments: []},
+        )()
+        _c07_err_diarizer = type(
+            "MockDiarizer", (_C07ErrDiarizer,), {"diarize": lambda self, chunk: []}
+        )()
+
+        _c07_err_run_pipeline(
+            storage=_c07_err_storage,
+            splitter=_c07_err_splitter,
+            detector=_c07_err_detector,
+            transcriber=_c07_err_transcriber,
+            diarizer=_c07_err_diarizer,
+            file_id="bad_file_id",
+        )
+        _output_c07_2 = mo.md(
+            "**Scenario ID: UAT-C07-02 - Robust Error Handling - FAILED**\\n\\nException was not triggered!"
+        )
+    except ValueError as e:
+        _output_c07_2 = mo.md(
+            f"**Scenario ID: UAT-C07-02 - Robust Error Handling - SUCCESS**\\n\\nCaught expected error: `{e}`"
+        )
+
+    return (_output_c07_2,)

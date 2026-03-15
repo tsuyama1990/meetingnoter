@@ -21,12 +21,9 @@ from domain_models import (
     DiarizedTranscript,
     Diarizer,
     PipelineConfig,
-    SpeakerLabel,
     SpeechDetector,
-    SpeechSegment,
     StorageClient,
     Transcriber,
-    TranscriptionSegment,
 )
 
 # Import the concrete implementations
@@ -45,6 +42,75 @@ def get_config() -> PipelineConfig:
     return PipelineConfig()
 
 
+def _process_single_chunk(
+    chunk: AudioChunk,
+    detector: SpeechDetector,
+    transcriber: Transcriber,
+    diarizer: Diarizer,
+) -> list[DiarizedSegment]:
+    """Processes a single chunk to manage memory strictly."""
+    import requests
+
+    from domain_models import SpeakerLabel, SpeechSegment, TranscriptionSegment
+
+    try:
+        # VAD gating
+        speech_segments: list[SpeechSegment] = detector.detect_speech(chunk)
+
+        # Transcribe with faster-whisper
+        transcriptions: list[TranscriptionSegment] = transcriber.transcribe(chunk, speech_segments)
+
+        # Diarize with Pyannote
+        speaker_labels: list[SpeakerLabel] = diarizer.diarize(chunk)
+
+        # Aggregate results
+        segments: list[DiarizedSegment] = []
+        for t, s in zip(transcriptions, speaker_labels, strict=False):
+            segments.append(
+                DiarizedSegment(
+                    start_time=t.start_time,
+                    end_time=t.end_time,
+                    text=t.text,
+                    speaker_id=s.speaker_id,
+                )
+            )
+    except RuntimeError as e:
+        if "CUDA out of memory" in str(e):
+            logger.exception(
+                "Resource exhaustion (OOM) encountered processing chunk %d. Aborting pipeline.",
+                chunk.chunk_index,
+            )
+        else:
+            logger.exception(
+                "Runtime error processing chunk %d. Aborting pipeline.", chunk.chunk_index
+            )
+        raise
+    except requests.exceptions.RequestException:
+        logger.exception(
+            "Network or authentication failure processing chunk %d. Aborting pipeline.",
+            chunk.chunk_index,
+        )
+        raise
+    except ValueError:
+        logger.exception(
+            "Validation error processing chunk %d. Aborting pipeline.", chunk.chunk_index
+        )
+        raise
+    except Exception as e:
+        # Re-raise unexpected exceptions to fail fast
+        msg = f"Unexpected failure in pipeline processing chunk {chunk.chunk_index}: {e}"
+        raise RuntimeError(msg) from e
+    else:
+        return segments
+    finally:
+        # Clear GPU memory after each heavy chunk to prevent OOM
+        import gc
+
+        gc.collect()
+        if torch is not None and torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+
 def run_pipeline(
     storage: StorageClient,
     splitter: AudioSplitter,
@@ -54,80 +120,34 @@ def run_pipeline(
     file_id: str,
 ) -> DiarizedTranscript:
     """Orchestrates the entire voice analysis pipeline."""
-    # 1. Download audio
-    source: AudioSource = storage.download(file_id)
+    source: AudioSource | None = None
+    chunks: list[AudioChunk] = []
 
-    # 2. Split into chunks
-    chunks: list[AudioChunk] = splitter.split(source)
+    try:
+        # 1. Download audio
+        source = storage.download(file_id)
 
-    all_segments: list[DiarizedSegment] = []
+        # 2. Split into chunks
+        chunks = splitter.split(source)
 
-    # 3. Process each chunk
-    import requests
+        all_segments: list[DiarizedSegment] = []
 
-    for chunk in chunks:
-        try:
-            # VAD gating
-            speech_segments: list[SpeechSegment] = detector.detect_speech(chunk)
+        # 3. Process each chunk
 
-            # Transcribe with faster-whisper
-            transcriptions: list[TranscriptionSegment] = transcriber.transcribe(
-                chunk, speech_segments
+        for chunk in chunks:
+            all_segments.extend(
+                _process_single_chunk(
+                    chunk=chunk, detector=detector, transcriber=transcriber, diarizer=diarizer
+                )
             )
 
-            # Diarize with Pyannote
-            speaker_labels: list[SpeakerLabel] = diarizer.diarize(chunk)
-
-            # Aggregate results
-            for t, s in zip(transcriptions, speaker_labels, strict=False):
-                all_segments.append(
-                    DiarizedSegment(
-                        start_time=t.start_time,
-                        end_time=t.end_time,
-                        text=t.text,
-                        speaker_id=s.speaker_id,
-                    )
-                )
-        except RuntimeError as e:
-            if "CUDA out of memory" in str(e):
-                logger.exception(
-                    "Resource exhaustion (OOM) encountered processing chunk %d. Aborting pipeline.",
-                    chunk.chunk_index,
-                )
-            else:
-                logger.exception(
-                    "Runtime error processing chunk %d. Aborting pipeline.", chunk.chunk_index
-                )
-            raise
-        except requests.exceptions.RequestException:
-            logger.exception(
-                "Network or authentication failure processing chunk %d. Aborting pipeline.",
-                chunk.chunk_index,
-            )
-            raise
-        except ValueError:
-            logger.exception(
-                "Validation error processing chunk %d. Aborting pipeline.", chunk.chunk_index
-            )
-            raise
-        except Exception as e:
-            # Re-raise unexpected exceptions to fail fast
-            msg = f"Unexpected failure in pipeline processing chunk {chunk.chunk_index}: {e}"
-            raise RuntimeError(msg) from e
-        finally:
-            # Clear GPU memory after each heavy chunk to prevent OOM
-            import gc
-
-            gc.collect()
-            if torch is not None and torch.cuda.is_available():
-                torch.cuda.empty_cache()
-
-    # Cleanup temp files
-    Path(source.filepath).unlink(missing_ok=True)
-    for chunk in chunks:
-        Path(chunk.chunk_filepath).unlink(missing_ok=True)
-
-    return DiarizedTranscript(segments=all_segments)
+        return DiarizedTranscript(segments=all_segments)
+    finally:
+        # Cleanup temp files
+        if source is not None:
+            Path(source.filepath).unlink(missing_ok=True)
+        for chunk in chunks:
+            Path(chunk.chunk_filepath).unlink(missing_ok=True)
 
 
 def create_components(
@@ -179,16 +199,17 @@ def main() -> None:
             diarizer=diarizer,
             file_id=config.file_id,
         )
-        logger.info(
-            "Pipeline finished successfully. Generated %d diarized segments.",
-            len(transcript.segments),
-        )
     except requests.exceptions.RequestException:
         logger.exception("Pipeline execution failed due to network connectivity.")
         sys.exit(1)
     except RuntimeError:
         logger.exception("Pipeline execution failed due to unexpected runtime error.")
         sys.exit(1)
+    else:
+        logger.info(
+            "Pipeline finished successfully. Generated %d diarized segments.",
+            len(transcript.segments),
+        )
 
 
 if __name__ == "__main__":

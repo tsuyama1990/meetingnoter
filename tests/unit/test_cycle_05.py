@@ -2,8 +2,20 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+import requests
 
-from domain_models import AudioChunk, PipelineConfig, SpeechSegment
+from domain_models import (
+    AudioChunk,
+    AudioSource,
+    AudioSplitter,
+    Diarizer,
+    PipelineConfig,
+    SpeechDetector,
+    SpeechSegment,
+    StorageClient,
+    Transcriber,
+)
+from main import _process_single_chunk, run_pipeline
 from meetingnoter.processing.transcriber import FasterWhisperTranscriber
 
 
@@ -409,3 +421,160 @@ def test_transcriber_cleanup_resources_torch_cuda_empty_cache() -> None:
     ):
         transcriber._cleanup_resources()
         mock_empty_cache.assert_called_once()
+
+
+# ---------------------------------------------------------
+# CYCLE 07 Tests for Pipeline Orchestration
+# ---------------------------------------------------------
+
+
+class FailingSyntheticStorageClient(StorageClient):
+    """A clean synthetic double that simulates a network failure on download."""
+    def download(self, file_id: str) -> AudioSource:
+        msg = "Network Error"
+        raise RuntimeError(msg)
+
+
+class SyntheticDatasetAudioSplitter(AudioSplitter):
+    def split(self, source: AudioSource) -> list[AudioChunk]:
+        return [
+            AudioChunk(
+                chunk_filepath=source.filepath,
+                start_time=0.0,
+                end_time=source.duration_seconds,
+                chunk_index=0,
+            )
+        ]
+
+def test_pipeline_orchestration_cleanup_on_download_fail(tmp_path: Path) -> None:
+    # Arrange
+    storage: StorageClient = FailingSyntheticStorageClient()
+    splitter: AudioSplitter = SyntheticDatasetAudioSplitter()
+    detector = MagicMock(spec=SpeechDetector)
+    transcriber = MagicMock(spec=Transcriber)
+    diarizer = MagicMock(spec=Diarizer)
+
+    # Act & Assert
+    with pytest.raises(RuntimeError, match="Network Error"):
+        run_pipeline(
+            storage=storage,
+            splitter=splitter,
+            detector=detector,
+            transcriber=transcriber,
+            diarizer=diarizer,
+            file_id="test_id"
+        )
+    # The source file was never created, so we don't assert deletion,
+    # but we ensure the code safely passed the finally block without error.
+
+
+def test_pipeline_orchestration_cleanup_on_chunking_fail(tmp_path: Path) -> None:
+    # Arrange
+    class FakeStorage(StorageClient):
+        def download(self, file_id: str) -> AudioSource:
+            f = tmp_path / "source.wav"
+            f.touch()
+            return AudioSource(filepath=str(f), duration_seconds=10.0)
+
+    class FailingSplitter(AudioSplitter):
+        def split(self, source: AudioSource) -> list[AudioChunk]:
+            msg = "Invalid audio format"
+            raise ValueError(msg)
+
+    storage = FakeStorage()
+    splitter = FailingSplitter()
+    detector = MagicMock(spec=SpeechDetector)
+    transcriber = MagicMock(spec=Transcriber)
+    diarizer = MagicMock(spec=Diarizer)
+
+    # Act & Assert
+    with pytest.raises(ValueError, match="Invalid audio format"):
+        run_pipeline(
+            storage=storage,
+            splitter=splitter,
+            detector=detector,
+            transcriber=transcriber,
+            diarizer=diarizer,
+            file_id="test_id"
+        )
+    # Ensure source was cleaned up in the finally block
+    assert not (tmp_path / "source.wav").exists()
+
+
+def test_pipeline_orchestration_cleanup_on_processing_fail(tmp_path: Path) -> None:
+    # Arrange
+    class FakeStorage(StorageClient):
+        def download(self, file_id: str) -> AudioSource:
+            f = tmp_path / "source.wav"
+            f.touch()
+            return AudioSource(filepath=str(f), duration_seconds=10.0)
+
+    class FakeSplitter(AudioSplitter):
+        def split(self, source: AudioSource) -> list[AudioChunk]:
+            f1 = tmp_path / "chunk1.wav"
+            f1.touch()
+            f2 = tmp_path / "chunk2.wav"
+            f2.touch()
+            return [
+                AudioChunk(chunk_filepath=str(f1), start_time=0.0, end_time=5.0, chunk_index=0),
+                AudioChunk(chunk_filepath=str(f2), start_time=5.0, end_time=10.0, chunk_index=1),
+            ]
+
+    storage = FakeStorage()
+    splitter = FakeSplitter()
+    detector = MagicMock(spec=SpeechDetector)
+    # Force detector to fail on the second chunk
+    detector.detect_speech.side_effect = [[], RuntimeError("CUDA out of memory")]
+
+    transcriber = MagicMock(spec=Transcriber)
+    transcriber.transcribe.return_value = []
+
+    diarizer = MagicMock(spec=Diarizer)
+    diarizer.diarize.return_value = []
+
+    # Act & Assert
+    with pytest.raises(RuntimeError, match="CUDA out of memory"):
+        run_pipeline(
+            storage=storage,
+            splitter=splitter,
+            detector=detector,
+            transcriber=transcriber,
+            diarizer=diarizer,
+            file_id="test_id"
+        )
+    # Ensure all temp files were cleaned up
+    assert not (tmp_path / "source.wav").exists()
+    assert not (tmp_path / "chunk1.wav").exists()
+    assert not (tmp_path / "chunk2.wav").exists()
+
+
+def test_process_single_chunk_network_error(tmp_path: Path) -> None:
+    chunk = AudioChunk(chunk_filepath=str(tmp_path / "test.wav"), start_time=0.0, end_time=10.0, chunk_index=0)
+    detector = MagicMock(spec=SpeechDetector)
+    detector.detect_speech.side_effect = requests.exceptions.RequestException("API down")
+    transcriber = MagicMock(spec=Transcriber)
+    diarizer = MagicMock(spec=Diarizer)
+
+    with pytest.raises(requests.exceptions.RequestException, match="API down"):
+        _process_single_chunk(chunk, detector, transcriber, diarizer)
+
+
+def test_process_single_chunk_validation_error(tmp_path: Path) -> None:
+    chunk = AudioChunk(chunk_filepath=str(tmp_path / "test.wav"), start_time=0.0, end_time=10.0, chunk_index=0)
+    detector = MagicMock(spec=SpeechDetector)
+    detector.detect_speech.side_effect = ValueError("Invalid inputs")
+    transcriber = MagicMock(spec=Transcriber)
+    diarizer = MagicMock(spec=Diarizer)
+
+    with pytest.raises(ValueError, match="Invalid inputs"):
+        _process_single_chunk(chunk, detector, transcriber, diarizer)
+
+def test_process_single_chunk_unexpected_error(tmp_path: Path) -> None:
+    chunk = AudioChunk(chunk_filepath=str(tmp_path / "test.wav"), start_time=0.0, end_time=10.0, chunk_index=0)
+    detector = MagicMock(spec=SpeechDetector)
+    detector.detect_speech.side_effect = TypeError("Something totally weird")
+    transcriber = MagicMock(spec=Transcriber)
+    diarizer = MagicMock(spec=Diarizer)
+
+    with pytest.raises(RuntimeError, match="Unexpected failure in pipeline processing chunk 0: Something totally weird"):
+        _process_single_chunk(chunk, detector, transcriber, diarizer)

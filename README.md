@@ -9,6 +9,7 @@ By running open-source foundation models (Whisper, Silero VAD, Pyannote.audio) l
 - **Secure Processing:** Runs entirely locally, ensuring sensitive audio data never leaves your environment.
 - **Robust Ingestion:** Securely downloads audio files directly from Google Drive.
 - **Memory-Efficient Processing:** Automatically chunks long audio files using FFmpeg to prevent Out-Of-Memory (OOM) crashes, enabling the processing of hour-long interviews on standard hardware.
+- **Aggressive Memory Management:** The orchestrated pipeline explicitly manages garbage collection and PyTorch CUDA cache clearing between heavy inference operations to guarantee stable execution.
 - **Voice Activity Detection (VAD) Gating:** Uses Silero VAD to detect speech segments, mathematically eliminating Whisper's hallucination loops during silent periods.
 - **High-Accuracy Transcription:** Utilizes the highly optimized `faster-whisper` engine (CTranslate2) with specific configurations for the Japanese language to prevent data loss.
 - **Accurate Speaker Diarization:** Integrates `pyannote.audio` to identify speaker turns and accurately segment audio with specific overlap prevention settings to accommodate Japanese conversational styles (e.g., 'aizuchi').
@@ -27,16 +28,28 @@ uv sync
 
 ## Usage
 
-MeetingNoter is currently in development. You can verify the pipeline components using the included test suite.
+You can run the full orchestration pipeline to transcribe and diarize audio straight from Google Drive:
+
+```bash
+# Set required environment variables
+export GOOGLE_API_KEY="your_google_drive_api_key"
+export PYANNOTE_AUTH_TOKEN="your_hugging_face_token"
+export FILE_ID="your_google_drive_file_id"
+
+# Run the orchestrated pipeline
+uv run main.py
+```
+
+### Testing and Interactive UAT Notebook
+
+You can verify the pipeline components using the included test suite.
 
 ```bash
 # Run the test suite
 uv run pytest
 ```
 
-### Interactive UAT Notebook
-
-An interactive tutorial and User Acceptance Testing (UAT) notebook is available using Marimo.
+An interactive tutorial and User Acceptance Testing (UAT) notebook is available using Marimo, demonstrating the capabilities of all pipeline stages.
 
 ```bash
 # Run the UAT notebook
