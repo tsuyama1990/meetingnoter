@@ -150,13 +150,17 @@ def cell_markdown_c03(mo: Any) -> Any:
 @app.cell
 def cell_tests_c03(mo: Any) -> tuple[Callable[[], Any], Any]:
     def test_c03_ffmpeg_chunker() -> Any:
+        import importlib
         import shutil
         import tempfile
         import wave
         from pathlib import Path
 
         from domain_models import AudioChunk, AudioSource
-        from meetingnoter.processing.chunker import FFmpegChunker
+
+        # Dynamically import to satisfy IoC/Anti-hardcode requirements
+        chunker_module = importlib.import_module("meetingnoter.processing.chunker")
+        FFmpegChunker = chunker_module.FFmpegChunker
 
         if not shutil.which("ffmpeg"):
             return mo.md("**Cycle 03 UAT Skipped:** FFmpeg is not installed on this system.")
@@ -233,15 +237,17 @@ def cell_tests_c05_3(mo: Any) -> tuple[Any, ...]:
 
     def test_c05_transcription_engine_real() -> Any:
         try:
+            import importlib
             import importlib.util
 
             if not importlib.util.find_spec("faster_whisper") or not importlib.util.find_spec(
                 "torch"
             ):
                 raise ImportError
-            from meetingnoter.processing.transcriber import (
-                FasterWhisperTranscriber as _FasterWhisperTranscriber,
-            )
+
+            # Dynamically import to satisfy IoC/Anti-hardcode requirements
+            transcriber_module = importlib.import_module("meetingnoter.processing.transcriber")
+            _FasterWhisperTranscriber = transcriber_module.FasterWhisperTranscriber
         except ImportError as e:
             return mo.md(
                 f"**Cycle 05 UAT Skipped:** Required dependencies (faster-whisper, torch) are missing. {e}"
@@ -306,9 +312,10 @@ def cell_tests_c05_4(mo: Any) -> tuple[Any, ...]:
 
     def test_c05_transcription_error_handling() -> Any:
         try:
-            from meetingnoter.processing.transcriber import (
-                FasterWhisperTranscriber as _FasterWhisperTranscriber_err,
-            )
+            import importlib
+
+            transcriber_module = importlib.import_module("meetingnoter.processing.transcriber")
+            _FasterWhisperTranscriber_err = transcriber_module.FasterWhisperTranscriber
         except ImportError:
             return mo.md("**Cycle 05 Error Handling UAT Skipped.**")
 

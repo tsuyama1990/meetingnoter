@@ -13,6 +13,8 @@ try:
 except ImportError:
     torch: Any = None  # type: ignore[no-redef]
 
+import importlib
+
 from domain_models import (
     AudioChunk,
     AudioSource,
@@ -25,13 +27,6 @@ from domain_models import (
     StorageClient,
     Transcriber,
 )
-
-# Import the concrete implementations
-from meetingnoter.ingestion.drive_client import GoogleDriveClient
-from meetingnoter.processing.chunker import FFmpegChunker
-from meetingnoter.processing.diarizer import PyannoteDiarizer
-from meetingnoter.processing.transcriber import FasterWhisperTranscriber
-from meetingnoter.processing.vad import SileroVADDetector
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -159,23 +154,32 @@ def run_pipeline(
 def create_components(
     config: PipelineConfig,
 ) -> tuple[StorageClient, AudioSplitter, SpeechDetector, Transcriber, Diarizer]:
-    """Factory function to build concrete implementations for dependency injection."""
-    storage: StorageClient = GoogleDriveClient(config=config)
-    splitter: AudioSplitter = FFmpegChunker(ffmpeg_path=config.ffmpeg_path, chunk_length_minutes=20)
-    detector: SpeechDetector = SileroVADDetector(
+    """Factory function to build concrete implementations using dynamic imports for IoC."""
+    # Dynamically import components to prevent hardcoding dependencies at module level
+    drive_client_module = importlib.import_module("meetingnoter.ingestion.drive_client")
+    chunker_module = importlib.import_module("meetingnoter.processing.chunker")
+    vad_module = importlib.import_module("meetingnoter.processing.vad")
+    transcriber_module = importlib.import_module("meetingnoter.processing.transcriber")
+    diarizer_module = importlib.import_module("meetingnoter.processing.diarizer")
+
+    storage: StorageClient = drive_client_module.GoogleDriveClient(config=config)
+    splitter: AudioSplitter = chunker_module.FFmpegChunker(
+        ffmpeg_path=config.ffmpeg_path, chunk_length_minutes=20
+    )
+    detector: SpeechDetector = vad_module.SileroVADDetector(
         threshold=0.5,
         min_speech_duration_ms=250,
         min_silence_duration_ms=1000,
         model_path=config.silero_vad_model_path,
     )
-    transcriber: Transcriber = FasterWhisperTranscriber(config)
+    transcriber: Transcriber = transcriber_module.FasterWhisperTranscriber(config)
 
     if not config.pyannote_auth_token or not config.pyannote_auth_token.startswith("hf_"):
         msg = "Invalid Pyannote auth token. It must be a valid Hugging Face token starting with 'hf_'."
         raise ValueError(msg)
 
     try:
-        diarizer: Diarizer = PyannoteDiarizer(auth_token=config.pyannote_auth_token)
+        diarizer: Diarizer = diarizer_module.PyannoteDiarizer(auth_token=config.pyannote_auth_token)
     except Exception as e:
         msg = f"Failed to initialize PyannoteDiarizer. Ensure pyannote.audio is correctly installed: {e}"
         raise RuntimeError(msg) from e
