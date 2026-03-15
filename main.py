@@ -4,11 +4,6 @@ from pathlib import Path
 from typing import Any
 
 try:
-    import google.colab
-except ImportError:
-    google: Any = None  # type: ignore[no-redef]
-
-try:
     import torch
 except ImportError:
     torch: Any = None  # type: ignore[no-redef]
@@ -151,44 +146,8 @@ def run_pipeline(
             Path(chunk.chunk_filepath).unlink(missing_ok=True)
 
 
-def create_components(
-    config: PipelineConfig,
-) -> tuple[StorageClient, AudioSplitter, SpeechDetector, Transcriber, Diarizer]:
-    """Factory function to build concrete implementations using dynamic imports for IoC."""
-    # Dynamically import components to prevent hardcoding dependencies at module level
-    drive_client_module = importlib.import_module(config.drive_client_module_path)
-    chunker_module = importlib.import_module(config.chunker_module_path)
-    vad_module = importlib.import_module(config.vad_module_path)
-    transcriber_module = importlib.import_module(config.transcriber_module_path)
-    diarizer_module = importlib.import_module(config.diarizer_module_path)
-
-    storage: StorageClient = drive_client_module.GoogleDriveClient(config=config)
-    splitter: AudioSplitter = chunker_module.FFmpegChunker(
-        ffmpeg_path=config.ffmpeg_path, chunk_length_minutes=config.chunk_length_minutes
-    )
-    detector: SpeechDetector = vad_module.SileroVADDetector(
-        threshold=config.vad_threshold,
-        min_speech_duration_ms=config.vad_min_speech_duration_ms,
-        min_silence_duration_ms=config.vad_min_silence_duration_ms,
-        model_path=config.silero_vad_model_path,
-    )
-    transcriber: Transcriber = transcriber_module.FasterWhisperTranscriber(config)
-
-    if not config.pyannote_auth_token or not config.pyannote_auth_token.startswith("hf_"):
-        msg = "Invalid Pyannote auth token. It must be a valid Hugging Face token starting with 'hf_'."
-        raise ValueError(msg)
-
-    try:
-        diarizer: Diarizer = diarizer_module.PyannoteDiarizer(auth_token=config.pyannote_auth_token)
-    except Exception as e:
-        msg = f"Failed to initialize PyannoteDiarizer. Ensure pyannote.audio is correctly installed: {e}"
-        raise RuntimeError(msg) from e
-
-    return storage, splitter, detector, transcriber, diarizer
-
-
 def main() -> None:
-    """Main entry point to execute the pipeline using concrete implementations."""
+    """Main entry point to execute the pipeline using Dependency Injection container initialization."""
     # 1. Resolve and validate configuration
     import pydantic
 
@@ -201,9 +160,38 @@ def main() -> None:
         logger.exception("Configuration validation failed due to missing secrets.")
         sys.exit(1)
 
-    # 2. Initialize concrete implementations using Dependency Injection via Factory
+    # 2. Initialize concrete implementations by passing dependencies dynamically rather than hardcoding imports
     try:
-        storage, splitter, detector, transcriber, diarizer = create_components(config)
+        drive_client_module = importlib.import_module(config.drive_client_module_path)
+        chunker_module = importlib.import_module(config.chunker_module_path)
+        vad_module = importlib.import_module(config.vad_module_path)
+        transcriber_module = importlib.import_module(config.transcriber_module_path)
+        diarizer_module = importlib.import_module(config.diarizer_module_path)
+
+        storage: StorageClient = drive_client_module.GoogleDriveClient(config=config)
+        splitter: AudioSplitter = chunker_module.FFmpegChunker(
+            ffmpeg_path=config.ffmpeg_path, chunk_length_minutes=config.chunk_length_minutes
+        )
+        detector: SpeechDetector = vad_module.SileroVADDetector(
+            threshold=config.vad_threshold,
+            min_speech_duration_ms=config.vad_min_speech_duration_ms,
+            min_silence_duration_ms=config.vad_min_silence_duration_ms,
+            model_path=config.silero_vad_model_path,
+        )
+        transcriber: Transcriber = transcriber_module.FasterWhisperTranscriber(config)
+
+        if not config.pyannote_auth_token or not config.pyannote_auth_token.startswith("hf_"):
+            msg = "Invalid Pyannote auth token. It must be a valid Hugging Face token starting with 'hf_'."
+            raise ValueError(msg)
+
+        try:
+            diarizer: Diarizer = diarizer_module.PyannoteDiarizer(
+                auth_token=config.pyannote_auth_token
+            )
+        except Exception as e:
+            msg = f"Failed to initialize PyannoteDiarizer. Ensure pyannote.audio is correctly installed: {e}"
+            raise RuntimeError(msg) from e
+
     except RuntimeError:
         logger.exception("Failed to dynamically initialize pipeline dependencies.")
         sys.exit(1)

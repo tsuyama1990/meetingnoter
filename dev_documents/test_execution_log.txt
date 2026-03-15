@@ -17,10 +17,10 @@ _______________ coverage: platform linux, python 3.12.13-final-0 _______________
 
 Name                                         Stmts   Miss  Cover   Missing
 --------------------------------------------------------------------------
-main.py                                        108     43    60%   13-14, 37, 104, 159-187, 193-225, 232
+main.py                                        101     41    59%   8-9, 32, 99, 152-213, 220
 src/domain_models/__init__.py                    5      0   100%
 src/domain_models/audio.py                      27      0   100%
-src/domain_models/config.py                     66     15    77%   10, 49-65
+src/domain_models/config.py                     67     16    76%   10, 49-66
 src/domain_models/interfaces.py                 13      0   100%
 src/domain_models/transcription.py              38      0   100%
 src/meetingnoter/__init__.py                     0      0   100%
@@ -30,9 +30,9 @@ src/meetingnoter/processing/transcriber.py      66      0   100%
 src/meetingnoter/processing/vad.py             184     58    68%   14-16, 49-50, 68-69, 86-87, 102, 108-109, 125-132, 142-148, 172-173, 189, 196-197, 207-216, 223, 227-229, 232-233, 236-237, 240-241, 244-245, 265-266, 269-273, 279, 283-284
 tests/e2e/test_integration_01.py                78     20    74%   91, 114, 147-175
 tests/unit/test_chunker.py                      95      0   100%
-tests/unit/test_cycle_05.py                    301      1    99%   452
+tests/unit/test_cycle_05.py                    286      0   100%
 tests/unit/test_domain_models.py               122      0   100%
 tests/unit/test_vad.py                          81      0   100%
 --------------------------------------------------------------------------
-TOTAL                                         1288    145    89%
-======================== 55 passed, 1 skipped in 8.52s =========================
+TOTAL                                         1267    143    89%
+======================== 55 passed, 1 skipped in 8.56s =========================

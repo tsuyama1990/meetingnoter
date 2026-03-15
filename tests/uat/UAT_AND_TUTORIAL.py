@@ -269,17 +269,21 @@ def cell_tests_c05_3(mo: Any) -> tuple[Any, ...]:
 
             speech_segments_01 = [_SpeechSegment(start_time=10.0, end_time=11.0)]
 
+            import os
             from unittest.mock import patch
 
-            with patch("domain_models.config._get_secret", return_value="test"):
-                _config = _PipelineConfig()
-                # Use REAL Transcriber with tiny settings for tests via patch to avoid hardcoding in test file
-                with (
-                    patch.object(_config, "transcriber_language", "ja"),
-                    patch.object(_config, "transcriber_model_size", "tiny"),
-                    patch.object(_config, "transcriber_compute_type", "int8"),
-                ):
-                    transcriber_01 = _FasterWhisperTranscriber(_config)
+            os.environ["GOOGLE_API_KEY"] = "test"
+            os.environ["PYANNOTE_AUTH_TOKEN"] = "test"
+            os.environ["FILE_ID"] = "test"
+
+            _config = _PipelineConfig()
+            # Use REAL Transcriber with tiny settings for tests via patch to avoid hardcoding in test file
+            with (
+                patch.object(_config, "transcriber_language", "ja"),
+                patch.object(_config, "transcriber_model_size", "tiny"),
+                patch.object(_config, "transcriber_compute_type", "int8"),
+            ):
+                transcriber_01 = _FasterWhisperTranscriber(_config)
 
             try:
                 results_01 = transcriber_01.transcribe(chunk_01, speech_segments_01)
@@ -320,16 +324,20 @@ def cell_tests_c05_4(mo: Any) -> tuple[Any, ...]:
         except ImportError:
             return mo.md("**Cycle 05 Error Handling UAT Skipped.**")
 
+        import os
         from unittest.mock import patch
 
-        with patch("domain_models.config._get_secret", return_value="test"):
-            _config_err = _PipelineConfig_err()
-            with (
-                patch.object(_config_err, "transcriber_language", "ja"),
-                patch.object(_config_err, "transcriber_model_size", "tiny"),
-            ):
-                # Use REAL Transcriber
-                transcriber_err = _FasterWhisperTranscriber_err(_config_err)
+        os.environ["GOOGLE_API_KEY"] = "test"
+        os.environ["PYANNOTE_AUTH_TOKEN"] = "test"
+        os.environ["FILE_ID"] = "test"
+
+        _config_err = _PipelineConfig_err()
+        with (
+            patch.object(_config_err, "transcriber_language", "ja"),
+            patch.object(_config_err, "transcriber_model_size", "tiny"),
+        ):
+            # Use REAL Transcriber
+            transcriber_err = _FasterWhisperTranscriber_err(_config_err)
 
         chunk_err = _AudioChunk_err(
             chunk_filepath="/path/to/nonexistent.wav", start_time=0.0, end_time=10.0, chunk_index=0
@@ -368,24 +376,51 @@ def cell_tests_c07_2(mo: Any) -> tuple[Any, ...]:
     from pathlib import Path
 
     from domain_models import PipelineConfig as _C07Config
-    from main import create_components as _c07_create_components
     from main import run_pipeline as _c07_run_pipeline
 
     def test_c07_primary_path() -> Any:
         try:
+            import importlib
+            import os
             from unittest.mock import MagicMock, patch
 
             import requests
 
-            with patch("domain_models.config._get_secret", return_value="dummy_key"):
-                _config = _C07Config()
-                with (
-                    patch.object(_config, "transcriber_model_size", "tiny"),
-                    patch.object(_config, "transcriber_compute_type", "int8"),
+            os.environ["GOOGLE_API_KEY"] = "dummy_key"
+            os.environ["PYANNOTE_AUTH_TOKEN"] = "hf_dummy_key"
+            os.environ["FILE_ID"] = "dummy_key"
+
+            _config = _C07Config()
+            with (
+                patch.object(_config, "transcriber_model_size", "tiny"),
+                patch.object(_config, "transcriber_compute_type", "int8"),
+            ):
+                drive_client_module = importlib.import_module(_config.drive_client_module_path)
+                chunker_module = importlib.import_module(_config.chunker_module_path)
+                vad_module = importlib.import_module(_config.vad_module_path)
+                transcriber_module = importlib.import_module(_config.transcriber_module_path)
+                diarizer_module = importlib.import_module(_config.diarizer_module_path)
+
+                # Instantiate real components instead of mocks.
+                _c07_storage = drive_client_module.GoogleDriveClient(config=_config)
+                _c07_splitter = chunker_module.FFmpegChunker(
+                    ffmpeg_path=_config.ffmpeg_path,
+                    chunk_length_minutes=_config.chunk_length_minutes,
+                )
+                _c07_detector = vad_module.SileroVADDetector(
+                    threshold=_config.vad_threshold,
+                    min_speech_duration_ms=_config.vad_min_speech_duration_ms,
+                    min_silence_duration_ms=_config.vad_min_silence_duration_ms,
+                    model_path=_config.silero_vad_model_path,
+                )
+                _c07_transcriber = transcriber_module.FasterWhisperTranscriber(_config)
+                # Since pyannote requires an actual HF token to init correctly or we catch exception,
+                # but we're testing primary path, we will mock the pipeline constructor to just not crash.
+                with patch.object(
+                    diarizer_module.PyannoteDiarizer, "_load_model", return_value=None
                 ):
-                    # Instantiate real components instead of mocks.
-                    _c07_storage, _c07_splitter, _c07_detector, _c07_transcriber, _c07_diarizer = (
-                        _c07_create_components(_config)
+                    _c07_diarizer = diarizer_module.PyannoteDiarizer(
+                        auth_token=_config.pyannote_auth_token
                     )
 
             # However, to avoid hitting real APIs without credentials, we intercept the GoogleDrive HTTP call using requests.Session mock:
@@ -406,7 +441,7 @@ def cell_tests_c07_2(mo: Any) -> tuple[Any, ...]:
             _mock_response.raise_for_status = MagicMock()
             _mock_http.get.return_value = _mock_response
             # For our StorageClient (GoogleDriveClient), we inject the http_client
-            _c07_storage.http_client = _mock_http  # type: ignore[attr-defined]
+            _c07_storage.http_client = _mock_http
 
             # Actually Silero path relies on config.silero_vad_model_path. We intercept _load_model safely.
             with (
@@ -449,32 +484,53 @@ def cell_tests_c07_3(mo: Any) -> tuple[Any, ...]:
     import requests
 
     from domain_models import PipelineConfig as _C07ErrConfig
-    from main import create_components as _c07_err_create_components
     from main import run_pipeline as _c07_err_run_pipeline
 
     def test_c07_error_handling() -> Any:
         try:
-            with patch("domain_models.config._get_secret", return_value="dummy_key"):
-                _config_err = _C07ErrConfig()
-                with (
-                    patch.object(_config_err, "transcriber_model_size", "tiny"),
-                    patch.object(_config_err, "transcriber_compute_type", "int8"),
+            import importlib
+            import os
+
+            os.environ["GOOGLE_API_KEY"] = "dummy_key"
+            os.environ["PYANNOTE_AUTH_TOKEN"] = "hf_dummy_key"
+            os.environ["FILE_ID"] = "dummy_key"
+
+            _config_err = _C07ErrConfig()
+            with (
+                patch.object(_config_err, "transcriber_model_size", "tiny"),
+                patch.object(_config_err, "transcriber_compute_type", "int8"),
+            ):
+                drive_client_module = importlib.import_module(_config_err.drive_client_module_path)
+                chunker_module = importlib.import_module(_config_err.chunker_module_path)
+                vad_module = importlib.import_module(_config_err.vad_module_path)
+                transcriber_module = importlib.import_module(_config_err.transcriber_module_path)
+                diarizer_module = importlib.import_module(_config_err.diarizer_module_path)
+
+                _c07_err_storage = drive_client_module.GoogleDriveClient(config=_config_err)
+                _c07_err_splitter = chunker_module.FFmpegChunker(
+                    ffmpeg_path=_config_err.ffmpeg_path,
+                    chunk_length_minutes=_config_err.chunk_length_minutes,
+                )
+                _c07_err_detector = vad_module.SileroVADDetector(
+                    threshold=_config_err.vad_threshold,
+                    min_speech_duration_ms=_config_err.vad_min_speech_duration_ms,
+                    min_silence_duration_ms=_config_err.vad_min_silence_duration_ms,
+                    model_path=_config_err.silero_vad_model_path,
+                )
+                _c07_err_transcriber = transcriber_module.FasterWhisperTranscriber(_config_err)
+                with patch.object(
+                    diarizer_module.PyannoteDiarizer, "_load_model", return_value=None
                 ):
-                    # Instantiate REAL components
-                    (
-                        _c07_err_storage,
-                        _c07_err_splitter,
-                        _c07_err_detector,
-                        _c07_err_transcriber,
-                        _c07_err_diarizer,
-                    ) = _c07_err_create_components(_config_err)
+                    _c07_err_diarizer = diarizer_module.PyannoteDiarizer(
+                        auth_token=_config_err.pyannote_auth_token
+                    )
 
             # Inject error into the real StorageClient by mocking its HTTP client to simulate an API drop
             _mock_http_err = MagicMock(spec=requests.Session)
             _mock_http_err.get.side_effect = requests.exceptions.RequestException(
                 "Simulated API Drop"
             )
-            _c07_err_storage.http_client = _mock_http_err  # type: ignore[attr-defined]
+            _c07_err_storage.http_client = _mock_http_err
 
             _c07_err_run_pipeline(
                 storage=_c07_err_storage,

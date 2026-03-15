@@ -439,30 +439,12 @@ def test_transcriber_cleanup_resources_torch_cuda_empty_cache() -> None:
 # ---------------------------------------------------------
 
 
-class FailingSyntheticStorageClient(StorageClient):
-    """A clean synthetic double that simulates a network failure on download."""
-
-    def download(self, file_id: str) -> AudioSource:
-        msg = "Network Error"
-        raise RuntimeError(msg)
-
-
-class SyntheticDatasetAudioSplitter(AudioSplitter):
-    def split(self, source: AudioSource) -> list[AudioChunk]:
-        return [
-            AudioChunk(
-                chunk_filepath=source.filepath,
-                start_time=0.0,
-                end_time=source.duration_seconds,
-                chunk_index=0,
-            )
-        ]
-
-
 def test_pipeline_orchestration_cleanup_on_download_fail(tmp_path: Path) -> None:
     # Arrange
-    storage: StorageClient = FailingSyntheticStorageClient()
-    splitter: AudioSplitter = SyntheticDatasetAudioSplitter()
+    storage = MagicMock(spec=StorageClient)
+    storage.download.side_effect = RuntimeError("Network Error")
+
+    splitter = MagicMock(spec=AudioSplitter)
     detector = MagicMock(spec=SpeechDetector)
     transcriber = MagicMock(spec=Transcriber)
     diarizer = MagicMock(spec=Diarizer)
@@ -483,19 +465,14 @@ def test_pipeline_orchestration_cleanup_on_download_fail(tmp_path: Path) -> None
 
 def test_pipeline_orchestration_cleanup_on_chunking_fail(tmp_path: Path) -> None:
     # Arrange
-    class FakeStorage(StorageClient):
-        def download(self, file_id: str) -> AudioSource:
-            f = tmp_path / "source.wav"
-            f.touch()
-            return AudioSource(filepath=str(f), duration_seconds=10.0)
+    storage = MagicMock(spec=StorageClient)
+    f = tmp_path / "source.wav"
+    f.touch()
+    storage.download.return_value = AudioSource(filepath=str(f), duration_seconds=10.0)
 
-    class FailingSplitter(AudioSplitter):
-        def split(self, source: AudioSource) -> list[AudioChunk]:
-            msg = "Invalid audio format"
-            raise ValueError(msg)
+    splitter = MagicMock(spec=AudioSplitter)
+    splitter.split.side_effect = ValueError("Invalid audio format")
 
-    storage = FakeStorage()
-    splitter = FailingSplitter()
     detector = MagicMock(spec=SpeechDetector)
     transcriber = MagicMock(spec=Transcriber)
     diarizer = MagicMock(spec=Diarizer)
@@ -516,25 +493,21 @@ def test_pipeline_orchestration_cleanup_on_chunking_fail(tmp_path: Path) -> None
 
 def test_pipeline_orchestration_cleanup_on_processing_fail(tmp_path: Path) -> None:
     # Arrange
-    class FakeStorage(StorageClient):
-        def download(self, file_id: str) -> AudioSource:
-            f = tmp_path / "source.wav"
-            f.touch()
-            return AudioSource(filepath=str(f), duration_seconds=10.0)
+    storage = MagicMock(spec=StorageClient)
+    f = tmp_path / "source.wav"
+    f.touch()
+    storage.download.return_value = AudioSource(filepath=str(f), duration_seconds=10.0)
 
-    class FakeSplitter(AudioSplitter):
-        def split(self, source: AudioSource) -> list[AudioChunk]:
-            f1 = tmp_path / "chunk1.wav"
-            f1.touch()
-            f2 = tmp_path / "chunk2.wav"
-            f2.touch()
-            return [
-                AudioChunk(chunk_filepath=str(f1), start_time=0.0, end_time=5.0, chunk_index=0),
-                AudioChunk(chunk_filepath=str(f2), start_time=5.0, end_time=10.0, chunk_index=1),
-            ]
+    splitter = MagicMock(spec=AudioSplitter)
+    f1 = tmp_path / "chunk1.wav"
+    f1.touch()
+    f2 = tmp_path / "chunk2.wav"
+    f2.touch()
+    splitter.split.return_value = [
+        AudioChunk(chunk_filepath=str(f1), start_time=0.0, end_time=5.0, chunk_index=0),
+        AudioChunk(chunk_filepath=str(f2), start_time=5.0, end_time=10.0, chunk_index=1),
+    ]
 
-    storage = FakeStorage()
-    splitter = FakeSplitter()
     detector = MagicMock(spec=SpeechDetector)
     # Force detector to fail on the second chunk
     detector.detect_speech.side_effect = [[], RuntimeError("CUDA out of memory")]

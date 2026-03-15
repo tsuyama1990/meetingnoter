@@ -60,9 +60,10 @@ def _get_secret(key_name: str) -> str:
     import logging
 
     logger = logging.getLogger(__name__)
-    logger.debug("Missing required configuration secret: %s", key_name)
+    logger.error("Missing required configuration secret: %s", key_name)
 
-    raise ValueError(ERROR_MSG_MISSING_SECRET)
+    msg = f"{ERROR_MSG_MISSING_SECRET}: {key_name}"
+    raise ValueError(msg)
 
 
 class PipelineConfig(BaseSettings):
