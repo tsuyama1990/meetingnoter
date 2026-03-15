@@ -7,9 +7,6 @@ try:
 except NameError:
     _base_dir = Path().resolve()
 
-_src_dir = _base_dir / "src"
-if str(_src_dir) not in sys.path:
-    sys.path.insert(0, str(_src_dir))
 if str(_base_dir) not in sys.path:
     sys.path.insert(0, str(_base_dir))
 
@@ -87,7 +84,7 @@ def cell_tests(
 ]:
     from pydantic import ValidationError
 
-    from domain_models import (
+    from src.domain_models import (
         AudioChunk,
         AudioSource,
         AudioSplitter,
@@ -191,7 +188,7 @@ def cell_tests_c03(mo: Any) -> tuple[Callable[[], Any], Any]:
         import wave
         from pathlib import Path
 
-        from domain_models import AudioChunk, AudioSource
+        from src.domain_models import AudioChunk, AudioSource
 
         # Dynamically import to satisfy IoC/Anti-hardcode requirements
         chunker_module = importlib.import_module("meetingnoter.processing.chunker")
@@ -422,7 +419,7 @@ def cell_tests_c07_2(mo: Any) -> tuple[Any, ...]:
     from pathlib import Path
 
     from src.domain_models import PipelineConfig
-    from main import run_pipeline
+    from src.main import run_pipeline
 
     import typing as _typing_c07_primary
 
@@ -445,11 +442,11 @@ def cell_tests_c07_2(mo: Any) -> tuple[Any, ...]:
                 patch.object(_config, "transcriber_model_size", "tiny"),
                 patch.object(_config, "transcriber_compute_type", "int8"),
             ):
-                from meetingnoter.ingestion.drive_client import GoogleDriveClient
-                from meetingnoter.processing.chunker import FFmpegChunker
-                from meetingnoter.processing.diarizer import PyannoteDiarizer
-                from meetingnoter.processing.transcriber import FasterWhisperTranscriber
-                from meetingnoter.processing.vad import SileroVADDetector
+                from src.meetingnoter.ingestion.drive_client import GoogleDriveClient
+                from src.meetingnoter.processing.chunker import FFmpegChunker
+                from src.meetingnoter.processing.diarizer import PyannoteDiarizer
+                from src.meetingnoter.processing.transcriber import FasterWhisperTranscriber
+                from src.meetingnoter.processing.vad import SileroVADDetector
 
                 # Instantiate real components instead of mocks.
                 _c07_storage = GoogleDriveClient(config=_config)
@@ -533,7 +530,7 @@ def cell_tests_c07_3(mo: Any) -> tuple[Any, ...]:
     import requests
 
     from src.domain_models import PipelineConfig
-    from main import run_pipeline
+    from src.main import run_pipeline
 
     import typing as _typing_c07_err
 
@@ -553,11 +550,11 @@ def cell_tests_c07_3(mo: Any) -> tuple[Any, ...]:
                 patch.object(_config_err, "transcriber_model_size", "tiny"),
                 patch.object(_config_err, "transcriber_compute_type", "int8"),
             ):
-                from meetingnoter.ingestion.drive_client import GoogleDriveClient
-                from meetingnoter.processing.chunker import FFmpegChunker
-                from meetingnoter.processing.diarizer import PyannoteDiarizer
-                from meetingnoter.processing.transcriber import FasterWhisperTranscriber
-                from meetingnoter.processing.vad import SileroVADDetector
+                from src.meetingnoter.ingestion.drive_client import GoogleDriveClient
+                from src.meetingnoter.processing.chunker import FFmpegChunker
+                from src.meetingnoter.processing.diarizer import PyannoteDiarizer
+                from src.meetingnoter.processing.transcriber import FasterWhisperTranscriber
+                from src.meetingnoter.processing.vad import SileroVADDetector
 
                 _c07_err_storage = GoogleDriveClient(config=_config_err)
                 _c07_err_splitter = FFmpegChunker(
