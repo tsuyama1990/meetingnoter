@@ -79,8 +79,32 @@ class SyntheticDatasetAudioSplitter(AudioSplitter):
         ]
 
 
+def create_failing_storage_client() -> StorageClient:
+    return FailingSyntheticStorageClient()
+
+
+def create_storage_client() -> StorageClient:
+    return SyntheticDatasetStorageClient()
+
+
+def create_audio_splitter() -> AudioSplitter:
+    return SyntheticDatasetAudioSplitter()
+
+
+def create_speech_detector() -> SpeechDetector:
+    return SyntheticDatasetSpeechDetector()
+
+
+def create_transcriber() -> Transcriber:
+    return SyntheticDatasetTranscriber()
+
+
+def create_diarizer() -> Diarizer:
+    return SyntheticDatasetDiarizer()
+
+
 def test_pipeline_integration_failure() -> None:
-    storage: StorageClient = FailingSyntheticStorageClient()
+    storage: StorageClient = create_failing_storage_client()
     import sys
     from pathlib import Path
 
@@ -95,10 +119,10 @@ def test_pipeline_integration_failure() -> None:
     with pytest.raises(RuntimeError, match="Network Error"):
         run_pipeline(
             storage=storage,
-            splitter=SyntheticDatasetAudioSplitter(),
-            detector=SyntheticDatasetSpeechDetector(),
-            transcriber=SyntheticDatasetTranscriber(),
-            diarizer=SyntheticDatasetDiarizer(),
+            splitter=create_audio_splitter(),
+            detector=create_speech_detector(),
+            transcriber=create_transcriber(),
+            diarizer=create_diarizer(),
             file_id="test_id",
         )
 
@@ -115,12 +139,12 @@ def test_pipeline_integration() -> None:
 
     from main import run_pipeline
 
-    storage: StorageClient = SyntheticDatasetStorageClient()
-    splitter: AudioSplitter = SyntheticDatasetAudioSplitter()
-    detector: SpeechDetector = SyntheticDatasetSpeechDetector()
+    storage: StorageClient = create_storage_client()
+    splitter: AudioSplitter = create_audio_splitter()
+    detector: SpeechDetector = create_speech_detector()
 
-    transcriber: Transcriber = SyntheticDatasetTranscriber()
-    diarizer: Diarizer = SyntheticDatasetDiarizer()
+    transcriber: Transcriber = create_transcriber()
+    diarizer: Diarizer = create_diarizer()
 
     transcript: DiarizedTranscript = run_pipeline(
         storage=storage,
@@ -161,8 +185,13 @@ def test_ffmpeg_chunker_integration() -> None:
         w.writeframes(b"\x00" * 16000 * 2)
 
     try:
+        import os
+
+        chunk_length_str = os.environ.get("TEST_CHUNK_LENGTH_MINUTES", "1")
+        chunk_length = int(chunk_length_str)
+
         source: AudioSource = AudioSource(filepath=tf.name, duration_seconds=1.0)
-        chunker: FFmpegChunker = FFmpegChunker(chunk_length_minutes=1)  # 1 minute chunks
+        chunker: FFmpegChunker = FFmpegChunker(chunk_length_minutes=chunk_length)
 
         chunks: list[AudioChunk] = chunker.split(source)
 
@@ -218,9 +247,9 @@ def test_pipeline_diarization_integration() -> None:
                 )
             ]
 
-    storage = SyntheticDatasetStorageClient()
-    splitter = SyntheticDatasetAudioSplitter()
-    detector = SyntheticDatasetSpeechDetector()
+    storage = create_storage_client()
+    splitter = create_audio_splitter()
+    detector = create_speech_detector()
     transcriber = MultiSpeechTranscriber()
     diarizer = MultiSpeakerDiarizer()
 
