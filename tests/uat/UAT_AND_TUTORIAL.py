@@ -380,48 +380,43 @@ def cell_tests_c07_2(mo: Any) -> tuple[Any, ...]:
 
     def test_c07_primary_path() -> Any:
         try:
-            import importlib
             import os
             from unittest.mock import MagicMock, patch
 
             import requests
 
-            os.environ["GOOGLE_API_KEY"] = "dummy_key"
-            os.environ["PYANNOTE_AUTH_TOKEN"] = "hf_dummy_key"
-            os.environ["FILE_ID"] = "dummy_key"
+            os.environ["GOOGLE_API_KEY"] = os.urandom(8).hex()
+            os.environ["PYANNOTE_AUTH_TOKEN"] = "hf_" + os.urandom(8).hex()
+            os.environ["FILE_ID"] = os.urandom(8).hex()
 
             _config = _C07Config()
             with (
                 patch.object(_config, "transcriber_model_size", "tiny"),
                 patch.object(_config, "transcriber_compute_type", "int8"),
             ):
-                drive_client_module = importlib.import_module(_config.drive_client_module_path)
-                chunker_module = importlib.import_module(_config.chunker_module_path)
-                vad_module = importlib.import_module(_config.vad_module_path)
-                transcriber_module = importlib.import_module(_config.transcriber_module_path)
-                diarizer_module = importlib.import_module(_config.diarizer_module_path)
+                from meetingnoter.ingestion.drive_client import GoogleDriveClient
+                from meetingnoter.processing.chunker import FFmpegChunker
+                from meetingnoter.processing.diarizer import PyannoteDiarizer
+                from meetingnoter.processing.transcriber import FasterWhisperTranscriber
+                from meetingnoter.processing.vad import SileroVADDetector
 
                 # Instantiate real components instead of mocks.
-                _c07_storage = drive_client_module.GoogleDriveClient(config=_config)
-                _c07_splitter = chunker_module.FFmpegChunker(
+                _c07_storage = GoogleDriveClient(config=_config)
+                _c07_splitter = FFmpegChunker(
                     ffmpeg_path=_config.ffmpeg_path,
                     chunk_length_minutes=_config.chunk_length_minutes,
                 )
-                _c07_detector = vad_module.SileroVADDetector(
+                _c07_detector = SileroVADDetector(
                     threshold=_config.vad_threshold,
                     min_speech_duration_ms=_config.vad_min_speech_duration_ms,
                     min_silence_duration_ms=_config.vad_min_silence_duration_ms,
                     model_path=_config.silero_vad_model_path,
                 )
-                _c07_transcriber = transcriber_module.FasterWhisperTranscriber(_config)
+                _c07_transcriber = FasterWhisperTranscriber(_config)
                 # Since pyannote requires an actual HF token to init correctly or we catch exception,
                 # but we're testing primary path, we will mock the pipeline constructor to just not crash.
-                with patch.object(
-                    diarizer_module.PyannoteDiarizer, "_load_model", return_value=None
-                ):
-                    _c07_diarizer = diarizer_module.PyannoteDiarizer(
-                        auth_token=_config.pyannote_auth_token
-                    )
+                with patch.object(PyannoteDiarizer, "_load_model", return_value=None):
+                    _c07_diarizer = PyannoteDiarizer(auth_token=_config.pyannote_auth_token)
 
             # However, to avoid hitting real APIs without credentials, we intercept the GoogleDrive HTTP call using requests.Session mock:
             _mock_http = MagicMock(spec=requests.Session)
@@ -450,12 +445,15 @@ def cell_tests_c07_2(mo: Any) -> tuple[Any, ...]:
             ):
                 # Let's just run it! Real components with intercepted downloads.
                 try:
+                    from meetingnoter import TranscriptMerger
+
                     _c07_transcript = _c07_run_pipeline(
                         storage=_c07_storage,
                         splitter=_c07_splitter,
                         detector=_c07_detector,
                         transcriber=_c07_transcriber,
                         diarizer=_c07_diarizer,
+                        aggregator=TranscriptMerger(),
                         file_id="dummy_file_id",
                     )
                     return mo.md(
@@ -488,42 +486,37 @@ def cell_tests_c07_3(mo: Any) -> tuple[Any, ...]:
 
     def test_c07_error_handling() -> Any:
         try:
-            import importlib
             import os
 
-            os.environ["GOOGLE_API_KEY"] = "dummy_key"
-            os.environ["PYANNOTE_AUTH_TOKEN"] = "hf_dummy_key"
-            os.environ["FILE_ID"] = "dummy_key"
+            os.environ["GOOGLE_API_KEY"] = os.urandom(8).hex()
+            os.environ["PYANNOTE_AUTH_TOKEN"] = "hf_" + os.urandom(8).hex()
+            os.environ["FILE_ID"] = os.urandom(8).hex()
 
             _config_err = _C07ErrConfig()
             with (
                 patch.object(_config_err, "transcriber_model_size", "tiny"),
                 patch.object(_config_err, "transcriber_compute_type", "int8"),
             ):
-                drive_client_module = importlib.import_module(_config_err.drive_client_module_path)
-                chunker_module = importlib.import_module(_config_err.chunker_module_path)
-                vad_module = importlib.import_module(_config_err.vad_module_path)
-                transcriber_module = importlib.import_module(_config_err.transcriber_module_path)
-                diarizer_module = importlib.import_module(_config_err.diarizer_module_path)
+                from meetingnoter.ingestion.drive_client import GoogleDriveClient
+                from meetingnoter.processing.chunker import FFmpegChunker
+                from meetingnoter.processing.diarizer import PyannoteDiarizer
+                from meetingnoter.processing.transcriber import FasterWhisperTranscriber
+                from meetingnoter.processing.vad import SileroVADDetector
 
-                _c07_err_storage = drive_client_module.GoogleDriveClient(config=_config_err)
-                _c07_err_splitter = chunker_module.FFmpegChunker(
+                _c07_err_storage = GoogleDriveClient(config=_config_err)
+                _c07_err_splitter = FFmpegChunker(
                     ffmpeg_path=_config_err.ffmpeg_path,
                     chunk_length_minutes=_config_err.chunk_length_minutes,
                 )
-                _c07_err_detector = vad_module.SileroVADDetector(
+                _c07_err_detector = SileroVADDetector(
                     threshold=_config_err.vad_threshold,
                     min_speech_duration_ms=_config_err.vad_min_speech_duration_ms,
                     min_silence_duration_ms=_config_err.vad_min_silence_duration_ms,
                     model_path=_config_err.silero_vad_model_path,
                 )
-                _c07_err_transcriber = transcriber_module.FasterWhisperTranscriber(_config_err)
-                with patch.object(
-                    diarizer_module.PyannoteDiarizer, "_load_model", return_value=None
-                ):
-                    _c07_err_diarizer = diarizer_module.PyannoteDiarizer(
-                        auth_token=_config_err.pyannote_auth_token
-                    )
+                _c07_err_transcriber = FasterWhisperTranscriber(_config_err)
+                with patch.object(PyannoteDiarizer, "_load_model", return_value=None):
+                    _c07_err_diarizer = PyannoteDiarizer(auth_token=_config_err.pyannote_auth_token)
 
             # Inject error into the real StorageClient by mocking its HTTP client to simulate an API drop
             _mock_http_err = MagicMock(spec=requests.Session)
@@ -532,12 +525,15 @@ def cell_tests_c07_3(mo: Any) -> tuple[Any, ...]:
             )
             _c07_err_storage.http_client = _mock_http_err
 
+            from meetingnoter import TranscriptMerger
+
             _c07_err_run_pipeline(
                 storage=_c07_err_storage,
                 splitter=_c07_err_splitter,
                 detector=_c07_err_detector,
                 transcriber=_c07_err_transcriber,
                 diarizer=_c07_err_diarizer,
+                aggregator=TranscriptMerger(),
                 file_id="bad_file_id",
             )
             return mo.md(
@@ -564,3 +560,94 @@ def cell_tests_c07_3(mo: Any) -> tuple[Any, ...]:
 
     _output_c07_2 = mo.vstack([test_c07_error_handling()])
     return (_output_c07_2,)
+
+
+@app.cell
+def cell_tests_c08_1(mo: Any) -> tuple[Any, ...]:
+    return (
+        mo.md(
+            """
+            # CYCLE08 User Acceptance Testing (UAT)
+
+            This section validates Data Aggregation and UAT Finalization components via Marimo.
+            We verify 'UAT-C08-01 - Primary Path' execution and 'UAT-C08-02 - Robust Error Handling'.
+            """
+        ),
+    )
+
+
+@app.cell
+def cell_tests_c08_2(mo: Any) -> tuple[Any, ...]:
+    def test_c08_primary_path() -> Any:
+        try:
+            from domain_models import AudioChunk, SpeakerLabel, TranscriptionSegment
+            from meetingnoter import TranscriptMerger
+
+            chunk = AudioChunk(
+                chunk_filepath="sample_chunk_1.wav",
+                start_time=1200.0,
+                end_time=2400.0,
+                chunk_index=1,
+            )
+            transcriptions = [
+                TranscriptionSegment(start_time=10.0, end_time=15.0, text="Hello offset")
+            ]
+            labels = [SpeakerLabel(start_time=10.0, end_time=15.0, speaker_id="SPEAKER_01")]
+
+            merger = TranscriptMerger()
+            result = merger.merge(chunk, transcriptions, labels)
+
+            assert len(result) == 1
+            assert result[0].start_time == 1210.0
+            assert result[0].end_time == 1215.0
+
+            return mo.md(
+                f"**Scenario ID: UAT-C08-01 - Primary Path - SUCCESS**\\n\\nAggregated transcript: {result[0].start_time}-{result[0].end_time}: {result[0].speaker_id} says '{result[0].text}'."
+            )
+
+        except Exception as e:
+            return mo.md(f"**Scenario ID: UAT-C08-01 - Primary Path - FAILED**\\n\\nError: {e}")
+
+    _output_c08_1 = mo.vstack([test_c08_primary_path()])
+    return (_output_c08_1,)
+
+
+@app.cell
+def cell_tests_c08_3(mo: Any) -> tuple[Any, ...]:
+    def test_c08_error_handling() -> Any:
+        try:
+            from domain_models import AudioChunk, SpeakerLabel, TranscriptionSegment
+            from meetingnoter import TranscriptMerger
+
+            chunk = AudioChunk(
+                chunk_filepath="sample_chunk_1.wav",
+                start_time=1200.0,
+                end_time=2400.0,
+                chunk_index=1,
+            )
+            transcriptions = [TranscriptionSegment(start_time=10.0, end_time=15.0, text="Valid")]
+            labels = [
+                SpeakerLabel(
+                    start_time=20.0, end_time=10.0, speaker_id="SPEAKER_01"
+                )  # Invalid time ordering
+            ]
+
+            merger = TranscriptMerger()
+            merger.merge(chunk, transcriptions, labels)
+
+            return mo.md(
+                "**Scenario ID: UAT-C08-02 - Robust Error Handling - FAILED**\\n\\nException was not triggered for malformed label!"
+            )
+        except Exception as e:
+            from pydantic import ValidationError
+
+            if isinstance(e, ValidationError):
+                return mo.md(
+                    f"**Scenario ID: UAT-C08-02 - Robust Error Handling - SUCCESS**\\n\\nCaught expected validation error: `{e}`"
+                )
+            return mo.md(
+                f"**Scenario ID: UAT-C08-02 - Robust Error Handling - FAILED**\\n\\nUnexpected error: {e}"
+            )
+
+    _output_c08_2 = mo.vstack([test_c08_error_handling()])
+    return (_output_c08_2,)

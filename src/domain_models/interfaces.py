@@ -1,7 +1,7 @@
 from typing import Protocol
 
 from .audio import AudioChunk, AudioSource, SpeechSegment
-from .transcription import SpeakerLabel, TranscriptionSegment
+from .transcription import DiarizedSegment, SpeakerLabel, TranscriptionSegment
 
 
 class StorageClient(Protocol):
@@ -33,4 +33,15 @@ class Transcriber(Protocol):
 class Diarizer(Protocol):
     def diarize(self, chunk: AudioChunk) -> list[SpeakerLabel]:
         """Identifies speaker labels with timestamps for an audio chunk."""
+        ...
+
+
+class Aggregator(Protocol):
+    def merge(
+        self,
+        chunk: AudioChunk,
+        transcriptions: list[TranscriptionSegment],
+        speaker_labels: list[SpeakerLabel],
+    ) -> list[DiarizedSegment]:
+        """Merges transcriptions and speaker labels into diarized segments, applying chunk offset."""
         ...

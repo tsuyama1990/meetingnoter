@@ -10,14 +10,25 @@ class PyannoteDiarizer(Diarizer):
 
     def _load_model(self) -> None:
         if self.pipeline is None:
+            if (
+                not self.auth_token
+                or len(self.auth_token) < 10
+                or not self.auth_token.startswith("hf_")
+            ):
+                msg = "Invalid authentication token format for pyannote."
+                raise ValueError(msg)
+
             try:
                 import torch
                 from pyannote.audio import Pipeline
             except ImportError as e:
-                msg = "Required library 'pyannote.audio' or 'torch' is not installed."
+                msg = "Failed to initialize diarization model due to missing dependencies."
                 raise ImportError(msg) from e
 
+            import logging
             import time
+
+            logger = logging.getLogger(__name__)
 
             max_retries = 3
             for attempt in range(max_retries):
@@ -28,9 +39,10 @@ class PyannoteDiarizer(Diarizer):
                     break
                 except Exception as e:
                     if attempt == max_retries - 1:
-                        msg = f"Failed to load pyannote pipeline after {max_retries} attempts. Please check HF_AUTH_TOKEN: {e}"
+                        logger.debug("Pyannote load failed: %s", e)
+                        msg = "Failed to initialize diarization model due to an external error."
                         raise RuntimeError(msg) from e
-                    time.sleep(2)
+                    time.sleep(2**attempt)  # Exponential backoff
 
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
             if self.pipeline is not None:
@@ -59,9 +71,8 @@ class PyannoteDiarizer(Diarizer):
 
                 labels: list[SpeakerLabel] = []
                 for turn, _, speaker in diarization.itertracks(yield_label=True):
-                    # Turn is a pyannote.core.Segment object
-                    start_sec: float = chunk.start_time + turn.start
-                    end_sec: float = chunk.start_time + turn.end
+                    start_sec: float = float(turn.start)
+                    end_sec: float = float(turn.end)
 
                     if start_sec < end_sec:
                         labels.append(
@@ -70,10 +81,14 @@ class PyannoteDiarizer(Diarizer):
                             )
                         )
             except Exception as e:
-                msg = f"Pyannote diarization failed: {e}"
+                import logging
+
+                logger = logging.getLogger(__name__)
+                logger.debug("Diarization failed: %s", e)
+                msg = "Pyannote diarization process failed."
                 raise RuntimeError(msg) from e
             else:
                 return labels
 
-        msg = "Pyannote pipeline was not properly loaded."
+        msg = "Pyannote pipeline failed to initialize."
         raise RuntimeError(msg)
