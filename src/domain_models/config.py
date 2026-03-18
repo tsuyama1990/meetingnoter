@@ -136,6 +136,10 @@ class PipelineConfig(BaseSettings):
         )
     )
 
+    transcriber_initial_prompt: str = Field(
+        default_factory=lambda: os.environ.get("TRANSCRIBER_INITIAL_PROMPT", "")
+    )
+
     transcriber_temperature: tuple[float, float] = Field(
         default_factory=lambda: _parse_tuple(
             os.environ.get("TRANSCRIBER_TEMPERATURE", ""), (0.0, 0.2)
