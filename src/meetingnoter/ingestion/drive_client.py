@@ -46,7 +46,9 @@ class GoogleDriveClient(StorageClient):
             # Convert ffmpeg_path to ffprobe safely
             ffmpeg_path = pathlib.Path(self.config.ffmpeg_path)
             ffprobe_base = ffmpeg_path.name.replace("ffmpeg", "ffprobe")
-            ffprobe_path = str(ffmpeg_path.parent / ffprobe_base) if ffmpeg_path.parent.name else ffprobe_base
+            ffprobe_path = (
+                str(ffmpeg_path.parent / ffprobe_base) if ffmpeg_path.parent.name else ffprobe_base
+            )
 
             cmd = [
                 ffprobe_path,
