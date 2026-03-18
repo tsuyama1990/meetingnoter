@@ -44,14 +44,19 @@ class GoogleDriveClient(StorageClient):
                     f.write(chunk)
 
             # Convert ffmpeg_path to ffprobe safely
-            ffmpeg_dir = os.path.dirname(self.config.ffmpeg_path)
-            ffmpeg_base = os.path.basename(self.config.ffmpeg_path)
-            ffprobe_base = ffmpeg_base.replace("ffmpeg", "ffprobe")
-            ffprobe_path = os.path.join(ffmpeg_dir, ffprobe_base) if ffmpeg_dir else ffprobe_base
+            ffmpeg_path = pathlib.Path(self.config.ffmpeg_path)
+            ffprobe_base = ffmpeg_path.name.replace("ffmpeg", "ffprobe")
+            ffprobe_path = str(ffmpeg_path.parent / ffprobe_base) if ffmpeg_path.parent.name else ffprobe_base
+
             cmd = [
-                ffprobe_path, "-v", "error", "-show_entries",
-                "format=duration", "-of",
-                "default=noprint_wrappers=1:nokey=1", temp_file_path
+                ffprobe_path,
+                "-v",
+                "error",
+                "-show_entries",
+                "format=duration",
+                "-of",
+                "default=noprint_wrappers=1:nokey=1",
+                temp_file_path,
             ]
             try:
                 output = subprocess.check_output(cmd)  # noqa: S603

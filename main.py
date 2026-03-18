@@ -5,9 +5,11 @@ from pathlib import Path
 from typing import Any
 
 # Assuming Google Drive is mounted at /content/drive
-if os.path.isdir("/content/drive/MyDrive"):
+if Path("/content/drive/MyDrive").is_dir():
     os.environ["HF_HOME"] = "/content/drive/MyDrive/MeetingNoter/models/hf_cache"
-    os.environ["CTRANSLATE2_CACHE_DIR"] = "/content/drive/MyDrive/MeetingNoter/models/whisper_cache"
+    os.environ["CTRANSLATE2_CACHE_DIR"] = (
+        "/content/drive/MyDrive/MeetingNoter/models/whisper_cache"
+    )
 
 try:
     import torch

@@ -91,7 +91,11 @@ class FasterWhisperTranscriber(Transcriber):
                     )
 
                 # Format initial prompt
-                initial_prompt = self.config.transcriber_initial_prompt if self.config.transcriber_initial_prompt else None
+                initial_prompt = (
+                    self.config.transcriber_initial_prompt
+                    if self.config.transcriber_initial_prompt
+                    else None
+                )
 
                 # Based on the ARCHITECTURE SPEC, we must override thresholds for Japanese
                 segments: typing.Iterable[typing.Any]
