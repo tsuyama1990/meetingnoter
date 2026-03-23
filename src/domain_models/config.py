@@ -125,10 +125,6 @@ class PipelineConfig(BaseSettings):
             return match.group(1)
         return v
 
-    silero_vad_model_path: str = Field(
-        default_factory=lambda: os.environ.get("SILERO_VAD_MODEL_PATH", "silero_vad.jit")
-    )
-
     ffmpeg_path: str = Field(default_factory=_get_ffmpeg_path_default)
 
     transcriber_model_size: str = Field(

@@ -34,10 +34,29 @@ class GoogleDriveClient(StorageClient):
             response = self.http_client.get(url, timeout=30, verify=True, stream=True)
             response.raise_for_status()
 
-            fd, temp_file_path = tempfile.mkstemp(suffix=".wav")
-            with os.fdopen(fd, "wb") as f:
-                for chunk in response.iter_content(chunk_size=8192):
-                    f.write(chunk)
+            raw_fd, raw_path = tempfile.mkstemp()
+            try:
+                with os.fdopen(raw_fd, "wb") as f:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        f.write(chunk)
+
+                fd, temp_file_path = tempfile.mkstemp(suffix=".wav")
+                os.close(fd)
+
+                import subprocess
+                try:
+                    subprocess.run(
+                        ["ffmpeg", "-y", "-i", raw_path, temp_file_path],
+                        check=True,
+                        capture_output=True,
+                        text=True,
+                    )  # noqa: S603
+                except subprocess.CalledProcessError as e:
+                    logger.error("FFmpeg stderr: %s", e.stderr)
+                    raise RuntimeError("FFmpeg transcoding failed") from e
+            finally:
+                if os.path.exists(raw_path):
+                    os.remove(raw_path)
 
             with wave.open(temp_file_path, "rb") as wav:
                 frames: int = wav.getnframes()

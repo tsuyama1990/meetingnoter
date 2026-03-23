@@ -129,6 +129,7 @@ def test_dummy_audio_splitter_implements_protocol() -> None:
     assert chunks[0].start_time == 0.0
 
 
+@patch("subprocess.run")
 @patch("tempfile.mkstemp")
 @patch("os.fdopen")
 @patch("wave.open")
@@ -136,6 +137,7 @@ def test_google_drive_client_success(
     mock_wave_open: MagicMock,
     mock_fdopen: MagicMock,
     mock_mkstemp: MagicMock,
+    mock_subprocess: MagicMock,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Set up safe test configuration instead of hardcoding API keys
