@@ -27,6 +27,56 @@ uv sync
 # (e.g., sudo apt install ffmpeg OR brew install ffmpeg)
 ```
 
+## Running on Google Colab
+
+### 1. Hugging Face Prerequisites (Crucial)
+
+Before doing anything else, you **MUST** have a Hugging Face account and accept the user agreements for three gated models:
+
+1. [pyannote/speaker-diarization-3.1](https://huggingface.co/pyannote/speaker-diarization-3.1)
+2. [pyannote/segmentation-3.0](https://huggingface.co/pyannote/segmentation-3.0)
+3. [pyannote/speaker-diarization-community-1](https://huggingface.co/pyannote/speaker-diarization-community-1)
+
+Once accepted, generate a **Hugging Face Access Token** with "Read" permissions from the same account.
+
+### 2. Google Colab Environment Setup
+
+Run the following blocks in your Colab notebook cells to set up the environment properly.
+
+**Step A: Mount Google Drive** (Required for caching large models so they don't re-download every session).
+```python
+from google.colab import drive
+drive.mount('/content/drive')
+```
+
+**Step B: Setup Secrets & Environment Variables**
+Add `GOOGLE_API_KEY` and `PYANNOTE_AUTH_TOKEN` to the Colab Secrets tab (🔑 icon in the left sidebar).
+```python
+import os
+from google.colab import userdata
+
+os.environ["GOOGLE_API_KEY"] = userdata.get('GOOGLE_API_KEY')
+os.environ["PYANNOTE_AUTH_TOKEN"] = userdata.get('PYANNOTE_AUTH_TOKEN')
+
+# Replace with the exact alphanumeric ID of your audio file, NOT the full URL
+os.environ["FILE_ID"] = "your_google_drive_file_id"
+```
+
+**Step C: Clone Repository and Install uv**
+```bash
+!git clone https://github.com/your-username/meetingnoter.git
+%cd meetingnoter
+!curl -LsSf https://astral.sh/uv/install.sh | sh
+!export PATH="/root/.cargo/bin:$PATH"
+!uv sync
+```
+
+**Step D: Execute the Pipeline**
+Run the pipeline with `MPLBACKEND=Agg` to prevent Matplotlib from crashing in Colab's headless environment.
+```bash
+!MPLBACKEND=Agg uv run main.py
+```
+
 ## Usage
 
 You can run the full orchestration pipeline to transcribe and diarize audio straight from Google Drive:
@@ -39,25 +89,6 @@ export FILE_ID="your_google_drive_file_id"
 
 # Run the orchestrated pipeline
 uv run main.py
-```
-
-### Running on Google Colab
-
-When running in Google Colab, use the **Secrets** panel (🔑 icon in the left sidebar) to securely store your credentials. This avoids hardcoding sensitive values in your notebook.
-
-Add the following secrets in the Colab UI:
-- `GOOGLE_API_KEY` — your Google Drive API key
-- `PYANNOTE_AUTH_TOKEN` — your Hugging Face token (must start with `hf_`)
-
-Then load them at the top of your notebook before running the pipeline:
-
-```python
-from google.colab import userdata
-import os
-
-os.environ["GOOGLE_API_KEY"] = userdata.get('GOOGLE_API_KEY')
-os.environ["PYANNOTE_AUTH_TOKEN"] = userdata.get('PYANNOTE_AUTH_TOKEN')
-os.environ["FILE_ID"] = "your_google_drive_file_id"  # Ensure this is JUST the ID, not the full link
 ```
 
 > **Tip:** `FILE_ID` should be the bare alphanumeric ID from a Google Drive share link (e.g., `1aBcDeFgHiJkL...`). If you accidentally paste the full URL, the pipeline will automatically extract the ID for you.

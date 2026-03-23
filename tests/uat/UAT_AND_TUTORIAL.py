@@ -410,7 +410,6 @@ def cell_tests_c07_2(mo: Any) -> tuple[Any, ...]:
                     threshold=_config.vad_threshold,
                     min_speech_duration_ms=_config.vad_min_speech_duration_ms,
                     min_silence_duration_ms=_config.vad_min_silence_duration_ms,
-                    model_path=_config.silero_vad_model_path,
                 )
                 _c07_transcriber = FasterWhisperTranscriber(_config)
                 # Since pyannote requires an actual HF token to init correctly or we catch exception,
@@ -512,7 +511,6 @@ def cell_tests_c07_3(mo: Any) -> tuple[Any, ...]:
                     threshold=_config_err.vad_threshold,
                     min_speech_duration_ms=_config_err.vad_min_speech_duration_ms,
                     min_silence_duration_ms=_config_err.vad_min_silence_duration_ms,
-                    model_path=_config_err.silero_vad_model_path,
                 )
                 _c07_err_transcriber = FasterWhisperTranscriber(_config_err)
                 with patch.object(PyannoteDiarizer, "_load_model", return_value=None):

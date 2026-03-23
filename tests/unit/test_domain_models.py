@@ -129,6 +129,7 @@ def test_dummy_audio_splitter_implements_protocol() -> None:
     assert chunks[0].start_time == 0.0
 
 
+@patch("shutil.which")
 @patch("subprocess.run")
 @patch("tempfile.mkstemp")
 @patch("os.fdopen")
@@ -138,8 +139,10 @@ def test_google_drive_client_success(
     mock_fdopen: MagicMock,
     mock_mkstemp: MagicMock,
     mock_subprocess: MagicMock,
+    mock_which: MagicMock,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    mock_which.return_value = "/usr/bin/ffmpeg"
     # Set up safe test configuration instead of hardcoding API keys
     monkeypatch.setenv("GOOGLE_API_KEY", __import__("os").urandom(8).hex())
     monkeypatch.setenv("PYANNOTE_AUTH_TOKEN", "hf_" + __import__("os").urandom(8).hex())

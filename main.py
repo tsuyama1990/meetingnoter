@@ -1,6 +1,6 @@
 import logging
+import os
 import sys
-import urllib.request
 from pathlib import Path
 from typing import Any
 
@@ -10,7 +10,7 @@ if str(_src_path) not in sys.path:
     sys.path.insert(0, str(_src_path))
 
 # Map TORCH_HOME for Colab caching
-import os
+
 os.environ["TORCH_HOME"] = os.environ.get(
     "TORCH_HOME", "/content/drive/MyDrive/MeetingNoter/models/torch_cache"
 )
