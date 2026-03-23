@@ -9,6 +9,15 @@ _src_path = Path(__file__).resolve().parent / "src"
 if str(_src_path) not in sys.path:
     sys.path.insert(0, str(_src_path))
 
+# Map TORCH_HOME for Colab caching
+import os
+os.environ["TORCH_HOME"] = os.environ.get(
+    "TORCH_HOME", "/content/drive/MyDrive/MeetingNoter/models/torch_cache"
+)
+os.environ["HF_HOME"] = os.environ.get(
+    "HF_HOME", "/content/drive/MyDrive/MeetingNoter/models/hf_cache"
+)
+
 try:
     import torch
 except ImportError:
@@ -153,38 +162,8 @@ def _process_single_chunk(
     return orchestrator._process_single_chunk(chunk)
 
 
-_SILERO_VAD_URL = (
-    "https://github.com/snakers4/silero-vad/raw/master/src/silero_vad/data/silero_vad.jit"
-)
-_SILERO_VAD_DEFAULT_PATH = Path("silero_vad.jit")
-
-
-def _ensure_silero_vad_model() -> None:
-    """Task 3: Auto-download silero_vad.jit if it doesn't exist locally."""
-    vad_path_str = __import__("os").environ.get(
-        "SILERO_VAD_MODEL_PATH", str(_SILERO_VAD_DEFAULT_PATH)
-    )
-    vad_path = Path(vad_path_str)
-    if not vad_path.exists():
-        logger.info("silero_vad.jit not found at '%s'. Downloading from GitHub...", vad_path)
-        try:
-            urllib.request.urlretrieve(_SILERO_VAD_URL, vad_path)  # noqa: S310
-            logger.info("Downloaded silero_vad.jit to '%s'.", vad_path)
-        except Exception:
-            logger.exception(
-                "Failed to auto-download silero_vad.jit. "
-                "Please download it manually from %s and place it at '%s'.",
-                _SILERO_VAD_URL,
-                vad_path,
-            )
-            sys.exit(1)
-
-
 def main() -> None:
     """Main entry point to execute the pipeline using Dependency Injection container initialization."""
-    # 0. Auto-download Silero VAD model if missing
-    _ensure_silero_vad_model()
-
     # 1. Resolve and validate configuration
     import typing as _typing
 
@@ -216,7 +195,6 @@ def main() -> None:
             threshold=config.vad_threshold,
             min_speech_duration_ms=config.vad_min_speech_duration_ms,
             min_silence_duration_ms=config.vad_min_silence_duration_ms,
-            model_path=config.silero_vad_model_path,
         )
         transcriber: Transcriber = FasterWhisperTranscriber(config)
         aggregator: Aggregator = TranscriptMerger()

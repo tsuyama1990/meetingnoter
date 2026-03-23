@@ -29,45 +29,12 @@ class VADConfig(BaseModel):
     min_silence_duration_ms: int = Field(
         default=1000, ge=500, le=1000, description="Strict Japanese nuances."
     )
-    model_path: str = Field(..., min_length=1)
-    model_hash: str | None = Field(default=None, description="SHA256 checksum for model integrity.")
     frame_duration: float = Field(default=0.032, gt=0.0)
 
     # Architectural and Security Limits
-    max_model_size_bytes: int = Field(default=100 * 1024 * 1024)  # 100MB
     max_audio_size_bytes: int = Field(default=1024 * 1024 * 1024)  # 1GB
     max_audio_duration_seconds: int = Field(default=3600)  # 1 Hour
     target_sample_rate: int = Field(default=16000)
-
-    @field_validator("model_path")
-    @classmethod
-    def validate_path(cls, v: str) -> str:
-        path = Path(v).resolve()
-
-        # Must exist and be a file
-        if not path.is_file():
-            msg = f"Model path {path} must be an existing file."
-            raise ValueError(msg)
-
-        # Must have valid extension
-        if path.suffix.lower() not in [".jit", ".pt"]:
-            msg = f"Model path {path} has invalid extension."
-            raise ValueError(msg)
-
-        allowed_dirs = [Path.cwd(), Path(__import__("tempfile").gettempdir())]
-        for d in allowed_dirs:
-            if path.is_relative_to(d):
-                return str(path)
-        msg = f"Path {path} is not within allowed directories: {allowed_dirs}"
-        raise ValueError(msg)
-
-    @field_validator("model_hash")
-    @classmethod
-    def validate_hash(cls, v: str | None) -> str | None:
-        if v is not None and not re.match(r"^[a-fA-F0-9]{64}$", v):
-            msg = "Model hash must be a valid SHA256 hex digest."
-            raise ValueError(msg)
-        return v
 
 
 class SileroVADDetector(SpeechDetector):
@@ -78,21 +45,15 @@ class SileroVADDetector(SpeechDetector):
         threshold: float = 0.5,
         min_speech_duration_ms: int = 250,
         min_silence_duration_ms: int = 1000,
-        model_path: str | None = None,
-        model_hash: str | None = None,
         frame_duration: float = 0.032,
+        model_path: str | None = None, # Left for backward compatibility in __init__ args, but ignored
+        model_hash: str | None = None, # Left for backward compatibility in __init__ args, but ignored
     ) -> None:
-        if not model_path:
-            msg = "A valid 'model_path' to a local Silero VAD model must be provided."
-            raise ValueError(msg)
-
         # Immediately validate the configuration via Pydantic model creation
         self.config = VADConfig(
             threshold=threshold,
             min_speech_duration_ms=min_speech_duration_ms,
             min_silence_duration_ms=min_silence_duration_ms,
-            model_path=model_path,
-            model_hash=model_hash,
             frame_duration=frame_duration,
         )
         self.model: Any = None
@@ -101,35 +62,16 @@ class SileroVADDetector(SpeechDetector):
         if self.model is not None:
             return
 
-        model_file = Path(self.config.model_path)
-
-        # Verify size limit to prevent DoS on hashing
-        if model_file.stat().st_size > self.config.max_model_size_bytes:
-            msg = f"Model file exceeds {self.config.max_model_size_bytes} bytes."
-            raise ValueError(msg)
-
-        # Open file securely and hold lock/handle while verifying and loading to prevent TOCTOU
-        with model_file.open("rb") as f:
-            if self.config.model_hash:
-                sha256 = hashlib.sha256()
-                # Streaming hash
-                for block in iter(lambda: f.read(8192), b""):
-                    sha256.update(block)
-
-                computed = sha256.hexdigest()
-                if computed != self.config.model_hash:
-                    msg = f"Model checksum mismatch! Expected {self.config.model_hash}, got {computed}"
-                    raise RuntimeError(msg)
-
-                # Reset file pointer to beginning for loading
-                f.seek(0)
-
-            try:
-                # Load model directly from the secure file handle
-                self.model = torch.jit.load(f)  # type: ignore[no-untyped-call]
-            except Exception as e:
-                msg = f"Failed to securely load Silero VAD model: {e}"
-                raise RuntimeError(msg) from e
+        try:
+            # Load model dynamically via torch.hub
+            self.model, _ = torch.hub.load(
+                repo_or_dir="snakers4/silero-vad:v4.0",
+                model="silero_vad",
+                force_reload=False,
+            )
+        except Exception as e:
+            msg = f"Failed to load Silero VAD model via torch.hub: {e}"
+            raise RuntimeError(msg) from e
 
     def _merge_and_filter_chunks(
         self, temp_speech_chunks: list[tuple[Decimal, Decimal]]
@@ -257,13 +199,33 @@ class SileroVADDetector(SpeechDetector):
             wav = self._load_and_sanitize_audio(audio_path)
 
             try:
-                with torch.no_grad():
-                    out = self.model(wav)
-                probs = out.squeeze()
+                # 1. Calculate window size (512 samples for 16kHz)
+                window_size = 512
 
-                if not isinstance(probs, torch.Tensor):
-                    msg = "Model did not return a torch.Tensor"
-                    raise TypeError(msg)
+                # 2. Call self.model.reset_states() before the loop
+                self.model.reset_states()
+
+                probs_list = []
+                num_samples = wav.shape[1]
+
+                with torch.no_grad():
+                    # 3. Iterate through the wav tensor in steps of 512.
+                    for i in range(0, num_samples, window_size):
+                        frame = wav[:, i : i + window_size]
+
+                        # Pad the final window with zeros if necessary
+                        if frame.shape[1] < window_size:
+                            padding = window_size - frame.shape[1]
+                            frame = torch.nn.functional.pad(frame, (0, padding))
+
+                        # 4. Call the model
+                        frame_prob = self.model(frame, self.config.target_sample_rate)
+
+                        # 5. Extract float probability using .item() and append to standard Python list
+                        probs_list.append(frame_prob.item())
+
+                # 6. Convert list of floats back into 1D torch.Tensor
+                probs = torch.tensor(probs_list)
 
                 segments = self._parse_probabilities(probs, chunk)
             except TypeError:
