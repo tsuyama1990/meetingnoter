@@ -40,6 +40,8 @@ class TranscriptMerger(Aggregator):
                     end_time=global_end,
                     text=trans.text,
                     speaker_id=best_speaker_id,
+                    confidence_score=trans.confidence_score,
+                    uncertain=trans.uncertain,
                 )
             )
 

@@ -1,4 +1,5 @@
 import gc
+import math
 import typing
 from pathlib import Path
 
@@ -103,11 +104,18 @@ class FasterWhisperTranscriber(Transcriber):
                     end_sec: float = float(segment.end)
 
                     if start_sec < end_sec:
+                        confidence_score = math.exp(float(segment.avg_logprob))
+                        uncertain = (
+                            True if confidence_score < self.config.confidence_threshold else None
+                        )
+
                         result.append(
                             TranscriptionSegment(
                                 start_time=start_sec,
                                 end_time=end_sec,
                                 text=str(segment.text.strip()),
+                                confidence_score=confidence_score,
+                                uncertain=uncertain,
                             )
                         )
             except RuntimeError as e:
