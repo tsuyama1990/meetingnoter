@@ -163,3 +163,8 @@ class PipelineConfig(BaseSettings):
     vad_min_silence_duration_ms: int = Field(
         default_factory=lambda: int(os.environ.get("VAD_MIN_SILENCE_DURATION_MS", "1000"))
     )
+    confidence_threshold: float = Field(
+        default_factory=lambda: float(os.environ.get("CONFIDENCE_THRESHOLD", "0.6"))
+    )
+    preprocess: str = Field(default_factory=lambda: os.environ.get("PREPROCESS", "none").lower())
+    output_dir: str = Field(default_factory=lambda: os.environ.get("OUTPUT_DIR", "."))

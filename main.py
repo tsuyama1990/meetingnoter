@@ -43,6 +43,38 @@ logger = logging.getLogger(__name__)
 
 
 def get_config() -> PipelineConfig:
+    import argparse
+
+    parser = argparse.ArgumentParser(description="MeetingNoter Pipeline")
+    parser.add_argument("file_id_or_path", nargs="?", help="File ID or Path for the audio source")
+    parser.add_argument(
+        "--preprocess",
+        choices=["none", "loudnorm", "compressor"],
+        default="none",
+        help="Audio preprocessing mode",
+    )
+    parser.add_argument(
+        "--confidence-threshold",
+        type=float,
+        default=0.6,
+        help="Threshold below which transcriptions are marked uncertain",
+    )
+    parser.add_argument(
+        "--output-dir", type=str, default=".", help="Directory to save the output files"
+    )
+
+    args, unknown = parser.parse_known_args()
+
+    # Override OS environment variables so PipelineConfig picks them up
+    if args.preprocess:
+        os.environ["PREPROCESS"] = args.preprocess
+    if args.confidence_threshold is not None:
+        os.environ["CONFIDENCE_THRESHOLD"] = str(args.confidence_threshold)
+    if args.output_dir:
+        os.environ["OUTPUT_DIR"] = args.output_dir
+    if args.file_id_or_path:
+        os.environ["FILE_ID"] = args.file_id_or_path
+
     # Resolves directly from ENV or google.colab.userdata via default_factory
     return PipelineConfig()
 
@@ -73,11 +105,29 @@ class PipelineOrchestrator:
         self.diarizer = diarizer
         self.aggregator = aggregator
 
-    def run(self, file_id: str) -> DiarizedTranscript:
+    def run(self, file_id: str, config: PipelineConfig | None = None) -> DiarizedTranscript:
         source: AudioSource | None = None
+        preprocessed_path: str | None = None
         chunks: list[AudioChunk] = []
         try:
             source = self.storage.download(file_id)
+
+            # Preprocess the audio
+            if config is not None and config.preprocess != "none" and source is not None:
+                import typing
+
+                from meetingnoter.processing.audio_preprocessor import preprocess_audio
+
+                logger.info("Starting audio preprocessing with mode: %s", config.preprocess)
+                preprocessed_path = preprocess_audio(
+                    source.filepath,
+                    config.ffmpeg_path,
+                    typing.cast(
+                        typing.Literal["none", "loudnorm", "compressor"], config.preprocess
+                    ),
+                )
+                source.filepath = preprocessed_path
+
             chunks = self.splitter.split(source)
             all_segments: list[DiarizedSegment] = []
 
@@ -94,6 +144,10 @@ class PipelineOrchestrator:
             _cleanup_memory()
             if source is not None:
                 Path(source.filepath).unlink(missing_ok=True)
+            if preprocessed_path is not None and (
+                source is None or preprocessed_path != source.filepath
+            ):
+                Path(preprocessed_path).unlink(missing_ok=True)
             for chunk in chunks:
                 Path(chunk.chunk_filepath).unlink(missing_ok=True)
 
@@ -144,11 +198,12 @@ def run_pipeline(
     diarizer: Diarizer,
     aggregator: Aggregator,
     file_id: str,
+    config: PipelineConfig | None = None,
 ) -> DiarizedTranscript:
     orchestrator = PipelineOrchestrator(
         storage, splitter, detector, transcriber, diarizer, aggregator
     )
-    return orchestrator.run(file_id)
+    return orchestrator.run(file_id, config)
 
 
 def _process_single_chunk(
@@ -162,7 +217,7 @@ def _process_single_chunk(
     return orchestrator._process_single_chunk(chunk)
 
 
-def main() -> None:
+def main() -> None:  # noqa: C901, PLR0915
     """Main entry point to execute the pipeline using Dependency Injection container initialization."""
     # 1. Resolve and validate configuration
     import typing as _typing
@@ -223,7 +278,7 @@ def main() -> None:
             diarizer=diarizer,
             aggregator=aggregator,
         )
-        transcript: DiarizedTranscript = orchestrator.run(config.file_id)
+        transcript: DiarizedTranscript = orchestrator.run(config.file_id, config)
     except RuntimeError:
         logger.exception("Pipeline execution failed due to an error.")
         sys.exit(1)
@@ -232,6 +287,41 @@ def main() -> None:
             "Pipeline finished successfully. Generated %d diarized segments.",
             len(transcript.segments),
         )
+
+        # Output saving
+        import json
+
+        output_dir = Path(config.output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        json_path = output_dir / "output.json"
+        md_path = output_dir / "output.md"
+
+        # JSON Output
+        segments_data = []
+        for seg in transcript.segments:
+            seg_dict = seg.model_dump(exclude_none=True)
+            if not seg_dict.get("uncertain"):
+                seg_dict.pop("uncertain", None)
+            segments_data.append(seg_dict)
+
+        with json_path.open("w", encoding="utf-8") as f:
+            json.dump(segments_data, f, indent=2, ensure_ascii=False)
+
+        # Markdown Output
+        def format_timestamp(seconds: float) -> str:
+            hours = int(seconds // 3600)
+            minutes = int((seconds % 3600) // 60)
+            secs = int(seconds % 60)
+            return f"{hours:02d}:{minutes:02d}:{secs:02d}"
+
+        with md_path.open("w", encoding="utf-8") as f:
+            for seg in transcript.segments:
+                start_str = format_timestamp(seg.start_time)
+                end_str = format_timestamp(seg.end_time)
+                f.write(f"[{start_str} - {end_str}] {seg.speaker_id}: {seg.text}\n")
+
+        logger.info("Output saved to %s and %s", json_path, md_path)
 
 
 if __name__ == "__main__":

@@ -9,6 +9,12 @@ class TranscriptionSegment(BaseModel):
     start_time: float = Field(..., ge=0, description="Start time of the transcribed text.")
     end_time: float = Field(..., gt=0, description="End time of the transcribed text.")
     text: str = Field(..., description="The transcribed text.")
+    confidence_score: float = Field(
+        default=1.0, ge=0.0, le=1.0, description="Confidence score from 0.0 to 1.0."
+    )
+    uncertain: bool | None = Field(
+        default=None, description="True if confidence is below threshold, else None."
+    )
 
     @model_validator(mode="after")
     def check_time_ordering(self) -> "TranscriptionSegment":
@@ -44,6 +50,12 @@ class DiarizedSegment(BaseModel):
     end_time: float = Field(..., gt=0, description="End time of the segment.")
     speaker_id: str = Field(..., min_length=1, description="Identifier of the speaker.")
     text: str = Field(..., description="The spoken text.")
+    confidence_score: float = Field(
+        default=1.0, ge=0.0, le=1.0, description="Confidence score from 0.0 to 1.0."
+    )
+    uncertain: bool | None = Field(
+        default=None, description="True if confidence is below threshold, else None."
+    )
 
     @model_validator(mode="after")
     def check_time_ordering(self) -> "DiarizedSegment":
