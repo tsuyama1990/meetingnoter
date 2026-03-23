@@ -41,6 +41,27 @@ export FILE_ID="your_google_drive_file_id"
 uv run main.py
 ```
 
+### Running on Google Colab
+
+When running in Google Colab, use the **Secrets** panel (🔑 icon in the left sidebar) to securely store your credentials. This avoids hardcoding sensitive values in your notebook.
+
+Add the following secrets in the Colab UI:
+- `GOOGLE_API_KEY` — your Google Drive API key
+- `PYANNOTE_AUTH_TOKEN` — your Hugging Face token (must start with `hf_`)
+
+Then load them at the top of your notebook before running the pipeline:
+
+```python
+from google.colab import userdata
+import os
+
+os.environ["GOOGLE_API_KEY"] = userdata.get('GOOGLE_API_KEY')
+os.environ["PYANNOTE_AUTH_TOKEN"] = userdata.get('PYANNOTE_AUTH_TOKEN')
+os.environ["FILE_ID"] = "your_google_drive_file_id"  # Ensure this is JUST the ID, not the full link
+```
+
+> **Tip:** `FILE_ID` should be the bare alphanumeric ID from a Google Drive share link (e.g., `1aBcDeFgHiJkL...`). If you accidentally paste the full URL, the pipeline will automatically extract the ID for you.
+
 ### Testing and Interactive UAT Notebook
 
 You can verify the pipeline components using the included test suite.

@@ -1,8 +1,9 @@
 import contextlib
 import os
+import re
 from typing import Any
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings
 
 try:
@@ -112,6 +113,18 @@ class PipelineConfig(BaseSettings):
     )
     file_id: str = Field(default_factory=lambda: _get_secret("FILE_ID"), min_length=1)
 
+    @field_validator("file_id", mode="before")
+    @classmethod
+    def extract_file_id_from_url(cls, v: str) -> str:
+        """Task 4: If a full Google Drive URL is given, extract just the file ID."""
+        if not isinstance(v, str):
+            return v
+        # Match /d/<ID>/ or ?id=<ID> patterns in Google Drive URLs
+        match = re.search(r"/d/([a-zA-Z0-9_-]+)", v) or re.search(r"[?&]id=([a-zA-Z0-9_-]+)", v)
+        if match:
+            return match.group(1)
+        return v
+
     silero_vad_model_path: str = Field(
         default_factory=lambda: os.environ.get("SILERO_VAD_MODEL_PATH", "silero_vad.jit")
     )
@@ -134,10 +147,6 @@ class PipelineConfig(BaseSettings):
         default_factory=lambda: (
             os.environ.get("TRANSCRIBER_CONDITION_ON_PREVIOUS_TEXT", "false").lower() == "true"
         )
-    )
-
-    transcriber_initial_prompt: str = Field(
-        default_factory=lambda: os.environ.get("TRANSCRIBER_INITIAL_PROMPT", "")
     )
 
     transcriber_temperature: tuple[float, float] = Field(

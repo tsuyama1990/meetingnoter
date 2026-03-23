@@ -82,21 +82,6 @@ class FasterWhisperTranscriber(Transcriber):
 
         if self.model:
             try:
-                # Format speech segments into clip_timestamps string if provided
-                clip_timestamps = "0"
-                if speech_segments:
-                    # e.g., "0.5,10.2,15.0,20.5"
-                    clip_timestamps = ",".join(
-                        f"{seg.start_time},{seg.end_time}" for seg in speech_segments
-                    )
-
-                # Format initial prompt
-                initial_prompt = (
-                    self.config.transcriber_initial_prompt
-                    if self.config.transcriber_initial_prompt
-                    else None
-                )
-
                 # Based on the ARCHITECTURE SPEC, we must override thresholds for Japanese
                 segments: typing.Iterable[typing.Any]
                 info: typing.Any
@@ -109,8 +94,6 @@ class FasterWhisperTranscriber(Transcriber):
                     compression_ratio_threshold=None,
                     log_prob_threshold=None,
                     no_speech_threshold=None,
-                    clip_timestamps=clip_timestamps,
-                    initial_prompt=initial_prompt,
                 )
 
                 result: list[TranscriptionSegment] = []
