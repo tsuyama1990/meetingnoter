@@ -43,17 +43,19 @@ def test_silero_vad_detect_speech(
     mock_ta_load.return_value = (mock_wav, 16000)
 
     class MockModel:
-        def __init__(self):
+        def __init__(self) -> None:
             self.call_count = 0
 
-        def reset_states(self):
+        def reset_states(self) -> None:
             pass
 
-        def __call__(self, x, sr=None):
+        def __call__(self, x: torch.Tensor, sr: int | None = None) -> torch.Tensor:
             if x.shape[-1] != 512:
-                raise ValueError(f"Input tensor shape must be (..., 512), got {x.shape}")
+                msg = f"Input tensor shape must be (..., 512), got {x.shape}"
+                raise ValueError(msg)
             if sr != 16000:
-                raise ValueError("Missing or incorrect 'sr' argument. Expected 16000.")
+                msg = "Missing or incorrect 'sr' argument. Expected 16000."
+                raise ValueError(msg)
             self.call_count += 1
 
             # 16000 / 512 = 31.25 -> 32 calls
@@ -82,10 +84,6 @@ def test_silero_vad_detect_speech(
         assert mock_model.call_count == 32
         assert len(segments) == 1
         # It's an approximation of start time:
-        # frame duration = 0.032. Start = index 4 * 0.032 = 0.128 or index 5 * 0.032 = 0.160
-        # Wait, the parser logic does:
-        # time_sec = idx * frame_dur
-        # speech is True starting from idx = 4 (because call_count 5 is idx 4)
         assert segments[0].start_time == 10.0 + 4 * 0.032
         # End is idx 21 * 0.032
         assert segments[0].end_time == 10.0 + 21 * 0.032
@@ -103,26 +101,26 @@ def test_silero_vad_detect_speech_long(
     audio_file = tmp_path / "test.wav"
     audio_file.touch()
 
-    chunk = AudioChunk(
-        chunk_filepath=str(audio_file), start_time=0.0, end_time=3.0, chunk_index=0
-    )
+    chunk = AudioChunk(chunk_filepath=str(audio_file), start_time=0.0, end_time=3.0, chunk_index=0)
 
     # 3 seconds of audio
     mock_wav = torch.zeros(1, 16000 * 3)
     mock_ta_load.return_value = (mock_wav, 16000)
 
     class MockModelLong:
-        def __init__(self):
+        def __init__(self) -> None:
             self.call_count = 0
 
-        def reset_states(self):
+        def reset_states(self) -> None:
             pass
 
-        def __call__(self, x, sr=None):
+        def __call__(self, x: torch.Tensor, sr: int | None = None) -> torch.Tensor:
             if x.shape[-1] != 512:
-                raise ValueError(f"Input tensor shape must be (..., 512), got {x.shape}")
+                msg = f"Input tensor shape must be (..., 512), got {x.shape}"
+                raise ValueError(msg)
             if sr != 16000:
-                raise ValueError("Missing or incorrect 'sr' argument. Expected 16000.")
+                msg = "Missing or incorrect 'sr' argument. Expected 16000."
+                raise ValueError(msg)
             self.call_count += 1
             return torch.tensor(0.1)
 

@@ -1,10 +1,8 @@
-import hashlib
-import re
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field
 
 from domain_models import AudioChunk, SpeechDetector, SpeechSegment
 
@@ -46,8 +44,10 @@ class SileroVADDetector(SpeechDetector):
         min_speech_duration_ms: int = 250,
         min_silence_duration_ms: int = 1000,
         frame_duration: float = 0.032,
-        model_path: str | None = None, # Left for backward compatibility in __init__ args, but ignored
-        model_hash: str | None = None, # Left for backward compatibility in __init__ args, but ignored
+        model_path: str
+        | None = None,  # Left for backward compatibility in __init__ args, but ignored
+        model_hash: str
+        | None = None,  # Left for backward compatibility in __init__ args, but ignored
     ) -> None:
         # Immediately validate the configuration via Pydantic model creation
         self.config = VADConfig(
@@ -64,7 +64,7 @@ class SileroVADDetector(SpeechDetector):
 
         try:
             # Load model dynamically via torch.hub
-            self.model, _ = torch.hub.load(
+            self.model, _ = torch.hub.load(  # type: ignore[no-untyped-call]
                 repo_or_dir="snakers4/silero-vad:v4.0",
                 model="silero_vad",
                 force_reload=False,

@@ -23,7 +23,7 @@ class GoogleDriveClient(StorageClient):
         self.config = config
         self.http_client = http_client or requests.Session()
 
-    def download(self, file_id: str) -> AudioSource:
+    def download(self, file_id: str) -> AudioSource:  # noqa: C901, PLR0915
         """Downloads an audio file securely and returns an AudioSource."""
         temp_file_path = ""
         try:
@@ -44,21 +44,30 @@ class GoogleDriveClient(StorageClient):
                 fd, temp_file_path = tempfile.mkstemp(suffix=".wav")
                 os.close(fd)
 
+                import shutil
                 import subprocess
+
+                ffmpeg_path = shutil.which("ffmpeg")
+                if not ffmpeg_path:
+                    msg = "ffmpeg is not installed or not in PATH."
+                    raise RuntimeError(msg)
+
                 try:
-                    subprocess.run(
-                        ["ffmpeg", "-y", "-i", raw_path, temp_file_path],
+                    subprocess.run(  # noqa: S603
+                        [ffmpeg_path, "-y", "-i", raw_path, temp_file_path],
                         check=True,
                         capture_output=True,
                         text=True,
-                    )  # noqa: S603
+                    )
                 except subprocess.CalledProcessError as e:
                     error_msg = e.stderr
-                    logger.error("FFmpeg transcoding failed: %s", error_msg)
-                    raise RuntimeError("FFmpeg transcoding failed. Check logs for details.") from e
+                    logger.exception("FFmpeg transcoding failed: %s", error_msg)
+                    msg = "FFmpeg transcoding failed. Check logs for details."
+                    raise RuntimeError(msg) from e
             finally:
-                if os.path.exists(raw_path):
-                    os.remove(raw_path)
+                raw_path_obj = pathlib.Path(raw_path)
+                if raw_path_obj.exists():
+                    raw_path_obj.unlink()
 
             with wave.open(temp_file_path, "rb") as wav:
                 frames: int = wav.getnframes()
