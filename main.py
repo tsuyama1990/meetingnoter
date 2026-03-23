@@ -105,7 +105,7 @@ class PipelineOrchestrator:
         self.diarizer = diarizer
         self.aggregator = aggregator
 
-    def run(self, file_id: str, config: PipelineConfig) -> DiarizedTranscript:
+    def run(self, file_id: str, config: PipelineConfig | None = None) -> DiarizedTranscript:
         source: AudioSource | None = None
         preprocessed_path: str | None = None
         chunks: list[AudioChunk] = []
@@ -113,7 +113,7 @@ class PipelineOrchestrator:
             source = self.storage.download(file_id)
 
             # Preprocess the audio
-            if config.preprocess != "none" and source is not None:
+            if config is not None and config.preprocess != "none" and source is not None:
                 import typing
 
                 from meetingnoter.processing.audio_preprocessor import preprocess_audio
@@ -200,8 +200,6 @@ def run_pipeline(
     file_id: str,
     config: PipelineConfig | None = None,
 ) -> DiarizedTranscript:
-    if config is None:
-        config = get_config()
     orchestrator = PipelineOrchestrator(
         storage, splitter, detector, transcriber, diarizer, aggregator
     )

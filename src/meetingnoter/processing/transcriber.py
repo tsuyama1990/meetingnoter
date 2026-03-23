@@ -104,7 +104,7 @@ class FasterWhisperTranscriber(Transcriber):
                     end_sec: float = float(segment.end)
 
                     if start_sec < end_sec:
-                        confidence_score = math.exp(float(segment.avg_logprob))
+                        confidence_score = max(0.0, min(1.0, math.exp(float(segment.avg_logprob))))
                         uncertain = (
                             True if confidence_score < self.config.confidence_threshold else None
                         )
