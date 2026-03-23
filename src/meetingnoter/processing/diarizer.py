@@ -34,7 +34,7 @@ class PyannoteDiarizer(Diarizer):
             for attempt in range(max_retries):
                 try:
                     self.pipeline = Pipeline.from_pretrained(  # type: ignore[call-arg, assignment]
-                        "pyannote/speaker-diarization-3.1", use_auth_token=self.auth_token
+                        "pyannote/speaker-diarization-3.1", token=self.auth_token
                     )
                     break
                 except Exception as e:
@@ -70,7 +70,9 @@ class PyannoteDiarizer(Diarizer):
                 )
 
                 labels: list[SpeakerLabel] = []
-                for turn, _, speaker in diarization.itertracks(yield_label=True):
+                # Support pyannote.audio 4.x DiarizeOutput wrapper and older Annotation objects
+                annotation = diarization.speaker_diarization if hasattr(diarization, "speaker_diarization") else diarization
+                for turn, _, speaker in annotation.itertracks(yield_label=True):
                     start_sec: float = float(turn.start)
                     end_sec: float = float(turn.end)
 

@@ -40,6 +40,7 @@ class GoogleDriveClient(StorageClient):
                     for chunk in response.iter_content(chunk_size=8192):
                         f.write(chunk)
 
+                # Use ffmpeg to safely convert the raw file into a valid WAV file
                 fd, temp_file_path = tempfile.mkstemp(suffix=".wav")
                 os.close(fd)
 
@@ -52,8 +53,9 @@ class GoogleDriveClient(StorageClient):
                         text=True,
                     )  # noqa: S603
                 except subprocess.CalledProcessError as e:
-                    logger.error("FFmpeg stderr: %s", e.stderr)
-                    raise RuntimeError("FFmpeg transcoding failed") from e
+                    error_msg = e.stderr
+                    logger.error("FFmpeg transcoding failed: %s", error_msg)
+                    raise RuntimeError("FFmpeg transcoding failed. Check logs for details.") from e
             finally:
                 if os.path.exists(raw_path):
                     os.remove(raw_path)
